@@ -4,7 +4,7 @@ A full-stack application that visualizes daily returns for the MAG7 stocks
 (MSFT, AAPL, GOOGL, AMZN, NVDA, META, TSLA) over a user-selected date range.
 
 **Backend:** FastAPI + yfinance + pandas, with a TTL cache and dependency
-injection. **Frontend:** React 18 + TypeScript + MUI + MUI X + Plotly,
+injection. **Frontend:** React 19 + TypeScript + MUI + MUI X + Plotly,
 with React Query for server state.
 
 ---
