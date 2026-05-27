@@ -85,3 +85,56 @@ def compute_summary_stats(returns: pd.DataFrame) -> dict[str, dict[str, float]]:
             "mean": float(series.mean()),
         }
     return stats
+
+
+def downsample_series(
+    points: list[ReturnPointDict], max_points: int
+) -> list[ReturnPointDict]:
+    """Thin a return series to at most `max_points` for charting, via LTTB.
+
+    Largest-Triangle-Three-Buckets keeps the points that best preserve the
+    visual shape of the line (including spikes), rather than naive every-Nth
+    decimation which can drop the days that matter. The first and last points
+    are always kept; the x-coordinate is the point's index (trading days are
+    ordered, so index spacing is what the chart shows).
+
+    This only affects the *rendered* series. Summary stats are computed on the
+    full daily series upstream, so min/max/mean remain exact regardless.
+    """
+    n = len(points)
+    if max_points < 3 or n <= max_points:
+        return points
+
+    sampled: list[ReturnPointDict] = [points[0]]
+    # Size of each interior bucket (first and last points sit outside buckets).
+    bucket = (n - 2) / (max_points - 2)
+    anchor = 0  # index of the last selected point
+
+    for i in range(max_points - 2):
+        # Average the *next* bucket to form the triangle's far vertex.
+        next_start = int((i + 1) * bucket) + 1
+        next_end = min(int((i + 2) * bucket) + 1, n)
+        next_len = next_end - next_start
+        avg_x = sum(range(next_start, next_end)) / next_len
+        avg_y = sum(points[j]["return"] for j in range(next_start, next_end)) / next_len
+
+        # Pick the point in the current bucket that maximizes triangle area
+        # with the anchor and the next-bucket average.
+        cur_start = int(i * bucket) + 1
+        cur_end = int((i + 1) * bucket) + 1
+        anchor_y = points[anchor]["return"]
+        best_area = -1.0
+        best = cur_start
+        for j in range(cur_start, cur_end):
+            area = abs(
+                (anchor - avg_x) * (points[j]["return"] - anchor_y)
+                - (anchor - j) * (avg_y - anchor_y)
+            )
+            if area > best_area:
+                best_area = area
+                best = j
+        sampled.append(points[best])
+        anchor = best
+
+    sampled.append(points[n - 1])
+    return sampled

@@ -10,7 +10,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import ValidationError
 
-from app.config import MAG7_TICKERS
+from app.config import MAG7_TICKERS, MAX_CHART_POINTS
 from app.dependencies import get_cache, get_price_fetcher
 from app.models import DateRangeQuery, ReturnsResponse
 from app.services.cache import Cache
@@ -18,6 +18,7 @@ from app.services.prices import NoPriceDataError, PriceFetcher, PriceFetchError
 from app.services.returns import (
     compute_daily_returns,
     compute_summary_stats,
+    downsample_series,
     to_response_dict,
 )
 
@@ -83,8 +84,14 @@ def get_returns(
         ) from exc
 
     returns_frame = compute_daily_returns(prices)
+    # Stats are computed on the full daily series; only the charted series is
+    # thinned, so min/max/mean stay exact even when downsampling kicks in.
+    series = {
+        ticker: downsample_series(points, MAX_CHART_POINTS)
+        for ticker, points in to_response_dict(returns_frame).items()
+    }
     payload: CachedPayload = {
-        "returns": to_response_dict(returns_frame),
+        "returns": series,
         "stats": compute_summary_stats(returns_frame),
     }
     cache.set(cache_key, payload)

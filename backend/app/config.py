@@ -26,3 +26,9 @@ CACHE_TTL_SECONDS: Final[int] = 300
 # Maximum entries in the price cache. Keys are (start, end) tuples; with normal
 # usage this caps memory at a few hundred KB.
 CACHE_MAX_SIZE: Final[int] = 128
+
+# Max points per ticker sent to the chart. Longer ranges (e.g. full history,
+# ~11k daily points for AAPL) are downsampled to this for payload/render size;
+# summary stats are still computed on the full series. ~8 years of daily data
+# is under this, so normal ranges are never thinned.
+MAX_CHART_POINTS: Final[int] = 2000

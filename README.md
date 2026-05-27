@@ -144,6 +144,23 @@ affects the visual sweep, not the data. A shared y-axis (or a toggle between
 the two modes) would be a reasonable enhancement if cross-ticker volatility
 comparison became a priority.
 
+### Downsampling long ranges
+
+With no range cap, a full-history request is ~11k daily points per ticker
+(~2.4 MB). The backend thins each *charted* series to `MAX_CHART_POINTS`
+(2000) using LTTB (Largest-Triangle-Three-Buckets), which preserves the
+line's visual shape — including spikes — far better than every-Nth decimation.
+This brings the full-history payload to ~0.7 MB.
+
+Crucially, **summary stats are computed on the full daily series, before
+downsampling**, so min/max/mean stay exact. The only effect is on the rendered
+line: LTTB usually keeps the global extreme points, but isn't guaranteed to, so
+a chart's lowest visible point can be a hair shallower than the reported `min`.
+yfinance can't do this for us — its coarser `interval`s (`1wk`, `1mo`) would
+compute *weekly/monthly* returns, a different metric than the daily returns
+specified, so the thinning happens server-side after the daily math.
+Ranges under ~8 years are below the cap and never touched.
+
 ### Free MUI X, not paid
 
 The MUI X `DateRangePicker` is behind a commercial license. I use two
@@ -191,9 +208,9 @@ That's it. Everything else matches the spec.
   appear in the response. This is yfinance's behavior and is the right
   one — a "0% return on Saturday" is nonsense.
 - **No artificial range cap — full history is supported.** A request is
-  bounded only by what yfinance has (each ticker from its IPO onward). Even
-  the full ~14-year common history of all seven names is a ~1 MB response, so
-  a hard cap isn't worth the lost functionality. A range that genuinely has no
+  bounded only by what yfinance has (each ticker from its IPO onward), with
+  long ranges downsampled for the chart (see "Downsampling long ranges") so
+  even full history is a manageable payload. A range that genuinely has no
   trading data (a weekend, a future range, or dates before any ticker existed)
   returns a **422** with a clear message — distinct from a real upstream
   failure (**502**), so the UI doesn't offer a pointless retry.
@@ -221,9 +238,10 @@ cd frontend
 npm test
 ```
 
-**Backend** (13 tests):
+**Backend** (16 tests):
 
-- Pure logic: returns math, stats math, NaN handling, empty inputs
+- Pure logic: returns math, stats math, NaN handling, empty inputs,
+  LTTB downsampling (cap, endpoint/order preservation, no-op below threshold)
 - Cache: set/get, TTL expiration
 - API: happy path, cache-hit verification, validation rejection, no-data
   range → 422, upstream failure → 502 translation
