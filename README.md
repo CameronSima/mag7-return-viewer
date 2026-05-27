@@ -132,6 +132,37 @@ points and would force me to write zoom/pan/tooltip handlers by hand.
 Plotly ships all of that out of the box and remains performant on
 multi-year ranges. The cost is bundle size — see "What I'd do next."
 
+### Per-card y-axis scaling
+
+Each ticker's chart auto-scales its y-axis to its own min/max rather than
+sharing a common scale across the grid. This optimizes for reading the
+*shape* of each name's return series independently — the trade-off is that
+magnitudes aren't visually comparable across cards (e.g. a ±1% swing on one
+card can look as dramatic as a ±4% swing on another). The per-card min/max/mean
+stats and the summary table give the absolute numbers, so the scale only
+affects the visual sweep, not the data. A shared y-axis (or a toggle between
+the two modes) would be a reasonable enhancement if cross-ticker volatility
+comparison became a priority.
+
+### Downsampling long ranges
+
+With no range cap, a full-history request is ~11k daily points per ticker
+(~2.4 MB). The backend thins each *charted* series to `MAX_CHART_POINTS`
+(2000) with LTTB (Largest-Triangle-Three-Buckets) — via the `tsdownsample`
+library rather than a hand-rolled implementation — which preserves the line's
+visual shape, including spikes, far better than every-Nth decimation. The
+library returns the indices of the kept points, so date/return pairs survive
+intact. This brings the full-history payload to ~0.7 MB.
+
+Crucially, **summary stats are computed on the full daily series, before
+downsampling**, so min/max/mean stay exact. The only effect is on the rendered
+line: LTTB usually keeps the global extreme points, but isn't guaranteed to, so
+a chart's lowest visible point can be a hair shallower than the reported `min`.
+yfinance can't do this for us — its coarser `interval`s (`1wk`, `1mo`) would
+compute *weekly/monthly* returns, a different metric than the daily returns
+specified, so the thinning happens server-side after the daily math.
+Ranges under ~8 years are below the cap and never touched.
+
 ### Free MUI X, not paid
 
 The MUI X `DateRangePicker` is behind a commercial license. I use two
@@ -178,9 +209,16 @@ That's it. Everything else matches the spec.
 - **Non-trading days are absent, not zero.** Weekends and holidays don't
   appear in the response. This is yfinance's behavior and is the right
   one — a "0% return on Saturday" is nonsense.
-- **A 5-year maximum range** is enforced server-side. Larger ranges would
-  produce response payloads in the tens of MB and aren't a likely use case
-  for this tool.
+- **No artificial range cap — full history is supported.** A request is
+  bounded only by what yfinance has (each ticker from its IPO onward), with
+  long ranges downsampled for the chart (see "Downsampling long ranges") so
+  even full history is a manageable payload. A range that genuinely has no
+  trading data (a weekend, a future range, or dates before any ticker existed)
+  returns a **422** with a clear message — distinct from a real upstream
+  failure (**502**), so the UI doesn't offer a pointless retry.
+- **Partial coverage is fine.** Over a long range, younger tickers simply
+  start later (META from its 2012 IPO, etc.); each chart shows its own
+  available history.
 - **The TTL cache is 5 minutes.** Daily closes don't change intraday for
   completed trading days, so 5 minutes is a balance between freshness near
   the current day's close and minimizing yfinance load.
@@ -202,12 +240,13 @@ cd frontend
 npm test
 ```
 
-**Backend** (12 tests):
+**Backend** (16 tests):
 
-- Pure logic: returns math, stats math, NaN handling, empty inputs
+- Pure logic: returns math, stats math, NaN handling, empty inputs,
+  LTTB downsampling (cap, endpoint/order preservation, no-op below threshold)
 - Cache: set/get, TTL expiration
-- API: happy path, cache-hit verification, validation rejection, upstream
-  failure → 502 translation
+- API: happy path, cache-hit verification, validation rejection, no-data
+  range → 422, upstream failure → 502 translation
 
 **Frontend** (13 tests):
 

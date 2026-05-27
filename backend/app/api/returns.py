@@ -10,14 +10,15 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import ValidationError
 
-from app.config import MAG7_TICKERS
+from app.config import MAG7_TICKERS, MAX_CHART_POINTS
 from app.dependencies import get_cache, get_price_fetcher
 from app.models import DateRangeQuery, ReturnsResponse
 from app.services.cache import Cache
-from app.services.prices import PriceFetcher, PriceFetchError
+from app.services.prices import NoPriceDataError, PriceFetcher, PriceFetchError
 from app.services.returns import (
     compute_daily_returns,
     compute_summary_stats,
+    downsample_series,
     to_response_dict,
 )
 
@@ -67,6 +68,15 @@ def get_returns(
 
     try:
         prices = price_fetcher.fetch(MAG7_TICKERS, start, end)
+    except NoPriceDataError as exc:
+        # Valid request, but the range has no trading data (e.g. a weekend,
+        # a future range, or dates before any ticker existed). This is a user
+        # input issue, not an upstream failure — 422, no point retrying.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No trading data found for the selected range. "
+            "Pick a range that includes trading days.",
+        ) from exc
     except PriceFetchError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -74,8 +84,14 @@ def get_returns(
         ) from exc
 
     returns_frame = compute_daily_returns(prices)
+    # Stats are computed on the full daily series; only the charted series is
+    # thinned, so min/max/mean stay exact even when downsampling kicks in.
+    series = {
+        ticker: downsample_series(points, MAX_CHART_POINTS)
+        for ticker, points in to_response_dict(returns_frame).items()
+    }
     payload: CachedPayload = {
-        "returns": to_response_dict(returns_frame),
+        "returns": series,
         "stats": compute_summary_stats(returns_frame),
     }
     cache.set(cache_key, payload)

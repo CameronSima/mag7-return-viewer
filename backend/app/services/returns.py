@@ -7,7 +7,9 @@ framework dependencies — trivially unit-testable.
 from datetime import date
 from typing import TypedDict
 
+import numpy as np
 import pandas as pd
+from tsdownsample import LTTBDownsampler
 
 # Wire format for a single return observation. `return` is a Python keyword,
 # so the key must be declared via functional TypedDict syntax to match the
@@ -85,3 +87,29 @@ def compute_summary_stats(returns: pd.DataFrame) -> dict[str, dict[str, float]]:
             "mean": float(series.mean()),
         }
     return stats
+
+
+def downsample_series(
+    points: list[ReturnPointDict], max_points: int
+) -> list[ReturnPointDict]:
+    """Thin a return series to at most `max_points` for charting, via LTTB.
+
+    Largest-Triangle-Three-Buckets keeps the points that best preserve the
+    visual shape of the line (including spikes), rather than naive every-Nth
+    decimation which can drop the days that matter. The first and last points
+    are always kept; x is the point's index (trading days are ordered, so index
+    spacing is what the chart shows).
+
+    Uses the `tsdownsample` LTTB implementation, which returns the indices of
+    the kept points so the date/return pairs are preserved exactly.
+
+    This only affects the *rendered* series. Summary stats are computed on the
+    full daily series upstream, so min/max/mean remain exact regardless.
+    """
+    n = len(points)
+    if max_points < 3 or n <= max_points:
+        return points
+
+    values = np.fromiter((p["return"] for p in points), dtype=float, count=n)
+    indices = LTTBDownsampler().downsample(values, n_out=max_points)
+    return [points[int(i)] for i in indices]
