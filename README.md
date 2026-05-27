@@ -103,13 +103,16 @@ via `pct_change()`. Two reasons:
 
 ### Server-computed summary statistics
 
-Min/max/mean per ticker are computed on the backend rather than in the
-frontend. Two reasons:
+Min/max/mean (and the observation count) per ticker are computed on the
+backend rather than in the frontend. Three reasons:
 
 1. Same numbers appear in the per-card stats and the summary table,
    guaranteed consistent.
 2. For large date ranges the frontend would be re-deriving stats from
    thousands of points on every render. Backend does it once.
+3. Since the chart series is downsampled (see "Downsampling long ranges"),
+   the frontend never sees the full series — so it *couldn't* derive accurate
+   min/max/count anyway. Computing on the backend keeps them exact.
 
 ### Dependency injection over module globals
 
@@ -191,9 +194,12 @@ free `DatePicker`s configured to enforce the range constraint via
 ```json
 {
   "returns": { "MSFT": [...], ... },
-  "stats":   { "MSFT": { "min": -0.05, "max": 0.04, "mean": 0.001 }, ... }
+  "stats":   { "MSFT": { "min": -0.05, "max": 0.04, "mean": 0.001, "count": 1253 }, ... }
 }
 ```
+
+(`count` is the number of return observations — trading days — in the full
+series, surfaced as "Days" in the summary table.)
 
 This lets the bonus "summary table across all 7 names" come back in the
 same network round-trip and stay atomic with respect to the date range.
@@ -321,7 +327,7 @@ acadian-mag7/
 │   │   └── services/
 │   │       ├── cache.py       # TTL cache + protocol
 │   │       ├── prices.py      # yfinance wrapper + protocol
-│   │       └── returns.py     # Pure returns math
+│   │       └── returns.py     # Pure returns math + LTTB downsampling
 │   └── tests/
 │       ├── conftest.py
 │       ├── test_returns_logic.py
