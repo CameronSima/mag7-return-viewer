@@ -19,4 +19,12 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // Test utilities legitimately re-export non-components; Fast Refresh,
+    // which the react-refresh rule guards, doesn't apply to test files.
+    files: ['tests/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

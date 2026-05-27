@@ -6,11 +6,17 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import App from "./App";
 import { theme } from "./theme";
+import { ApiError } from "./api/returns";
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false, // don't refetch when user tabs back
+      retry: (failureCount, error) => {
+        // Don't retry validation errors — the user input is wrong, not the server.
+        if (error instanceof ApiError && error.status === 422) return false;
+        return failureCount < 2;
+      },
     },
   },
 });

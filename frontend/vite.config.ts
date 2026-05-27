@@ -1,9 +1,16 @@
-/// <reference types="vitest" />
-import { defineConfig } from "vite";
+import { fileURLToPath, URL } from "node:url";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      // Mirror the "@/*" -> "./src/*" mapping from tsconfig so Vite, the dev
+      // server, and Vitest all resolve the alias at runtime.
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
   server: {
     port: 5173,
     proxy: {

@@ -9,7 +9,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.models import DateRangeQuery
+from app.models import DateRangeQuery, ReturnsResponse
 from app.services.cache import Cache
 from app.services.prices import PriceFetcher, PriceFetchError
 from app.services.returns import (
@@ -28,7 +28,7 @@ CachedPayload = dict[str, object]
 CacheType = Cache[tuple[str, str], CachedPayload]
 
 
-@router.get("/returns")
+@router.get("/returns", response_model=ReturnsResponse)
 def get_returns(
     start: Annotated[date, Query(description="Start date, inclusive (YYYY-MM-DD)")],
     end: Annotated[date, Query(description="End date, inclusive (YYYY-MM-DD)")],

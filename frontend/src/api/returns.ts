@@ -16,7 +16,9 @@ export async function fetchReturns(
 
   let response: Response;
   try {
-    response = await fetch(url, { signal });
+    // Coalesce to null: under exactOptionalPropertyTypes an explicit
+    // `undefined` isn't assignable to RequestInit.signal.
+    response = await fetch(url, { signal: signal ?? null });
   } catch (err) {
     // Network failure (DNS, offline, CORS preflight rejection, abort)
     if (err instanceof DOMException && err.name === "AbortError") throw err;

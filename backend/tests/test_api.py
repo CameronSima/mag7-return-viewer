@@ -16,6 +16,11 @@ def test_returns_endpoint_happy_path(client: TestClient) -> None:
     assert "AAPL" in body["returns"]
     assert body["stats"]["MSFT"]["mean"] > 0
 
+    # Each return point must use the wire contract keys "date" and "return"
+    # (not "return_"); the frontend's ReturnPoint type and charts depend on it.
+    point = body["returns"]["MSFT"][0]
+    assert set(point.keys()) == {"date", "return"}
+
 
 def test_returns_endpoint_uses_cache(client: TestClient) -> None:
     """Second identical request should not call the price fetcher again."""

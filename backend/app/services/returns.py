@@ -10,11 +10,10 @@ from typing import TypedDict
 import pandas as pd
 
 
-class ReturnPointDict(TypedDict):
-    """Wire format for a single return observation."""
-
-    date: str
-    return_: float
+# Wire format for a single return observation. `return` is a Python keyword,
+# so the key must be declared via functional TypedDict syntax to match the
+# JSON contract (and the frontend's ReturnPoint type) exactly.
+ReturnPointDict = TypedDict("ReturnPointDict", {"date": str, "return": float})
 
 
 def compute_daily_returns(prices: pd.DataFrame) -> pd.DataFrame:
@@ -50,7 +49,7 @@ def to_response_dict(returns: pd.DataFrame) -> dict[str, list[ReturnPointDict]]:
     for ticker in returns.columns:
         series = returns[ticker].dropna()
         output[ticker] = [
-            {"date": _format_date(idx), "return_": float(value)} for idx, value in series.items()
+            {"date": _format_date(idx), "return": float(value)} for idx, value in series.items()
         ]
     return output
 

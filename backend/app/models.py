@@ -6,28 +6,48 @@ TypeScript types in src/types.ts.
 
 from datetime import date
 
-from pydantic import BaseModel, Field, RootModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from app.config import MAX_DATE_RANGE_DAYS
 
 
 class ReturnPoint(BaseModel):
-    """A single daily return observation for a ticker."""
+    """A single daily return observation for a ticker.
+
+    The field is `return_` (a Python keyword can't be a field name) but
+    serializes via its alias to the wire key "return".
+    """
 
     date: date
     return_: float = Field(alias="return")
 
+    # Accept either "return" (alias) or "return_" (name) on input; the
+    # endpoint serializes by alias so the wire key is always "return".
     model_config = {"populate_by_name": True}
 
 
-class ReturnsResponse(RootModel[dict[str, list[ReturnPoint]]]):
-    """Response: ticker symbols mapping to return series.
+class TickerStats(BaseModel):
+    """Per-ticker summary statistics over the requested range."""
 
-    Serializes as: {"MSFT": [{"date": "...", "return": 0.004}, ...], ...}
-    matching the assignment specification exactly.
+    min: float
+    max: float
+    mean: float
+
+
+class ReturnsResponse(BaseModel):
+    """Full response for GET /returns — the API's wire contract.
+
+    Serializes as:
+        {
+            "returns": {"MSFT": [{"date": "...", "return": 0.004}, ...], ...},
+            "stats":   {"MSFT": {"min": ..., "max": ..., "mean": ...}, ...}
+        }
+
+    Mirrors the frontend's ReturnsResponse type in src/types.ts.
     """
 
-    pass
+    returns: dict[str, list[ReturnPoint]]
+    stats: dict[str, TickerStats]
 
 
 class DateRangeQuery(BaseModel):

@@ -15,13 +15,5 @@ export function useReturns(start: string | null, end: string | null) {
     queryFn: ({ signal }) => fetchReturns(start!, end!, signal),
     enabled: Boolean(start && end),
     staleTime: 5 * 60 * 1000, // 5 min, matches backend cache TTL
-    retry: (failureCount, error) => {
-      // Don't retry validation errors — the user input is wrong, not the server.
-      if (error instanceof Error && "status" in error) {
-        const status = (error as { status: number }).status;
-        if (status === 422) return false;
-      }
-      return failureCount < 2;
-    },
   });
 }

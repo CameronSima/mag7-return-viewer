@@ -40,7 +40,7 @@ def test_to_response_dict_drops_nan(sample_prices: pd.DataFrame) -> None:
     assert len(payload["MSFT"]) < len(payload["AAPL"])
     # No NaN values leaked through.
     for point in payload["MSFT"]:
-        assert point["return_"] == point["return_"]  # NaN != NaN trick
+        assert point["return"] == point["return"]  # NaN != NaN trick
 
 
 def test_summary_stats_handles_known_values(sample_prices: pd.DataFrame) -> None:
