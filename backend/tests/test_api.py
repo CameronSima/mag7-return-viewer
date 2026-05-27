@@ -31,11 +31,15 @@ def test_returns_endpoint_uses_cache(client: TestClient) -> None:
 
 
 def test_returns_endpoint_rejects_inverted_range(client: TestClient) -> None:
-    """end < start should be 422 with a readable message."""
+    """end < start should be 422 with a clean, human-readable message."""
     response = client.get("/returns?start=2024-01-08&end=2024-01-02")
 
     assert response.status_code == 422
-    assert "end date" in response.json()["detail"].lower()
+    detail = response.json()["detail"]
+    assert detail == "end date must be on or after start date"
+    # The raw Pydantic dump must not leak to the client.
+    assert "validation error" not in detail.lower()
+    assert "https://" not in detail
 
 
 def test_returns_endpoint_handles_upstream_failure(client: TestClient) -> None:

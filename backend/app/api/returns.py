@@ -8,18 +8,18 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import ValidationError
 
+from app.config import MAG7_TICKERS
+from app.dependencies import get_cache, get_price_fetcher
 from app.models import DateRangeQuery, ReturnsResponse
 from app.services.cache import Cache
 from app.services.prices import PriceFetcher, PriceFetchError
 from app.services.returns import (
-    ReturnPointDict,
     compute_daily_returns,
     compute_summary_stats,
     to_response_dict,
 )
-from app.config import MAG7_TICKERS
-from app.dependencies import get_cache, get_price_fetcher
 
 router = APIRouter()
 
@@ -48,10 +48,16 @@ def get_returns(
     # Validate the date range using the same model that documents the rules.
     try:
         DateRangeQuery(start=start, end=end)
-    except ValueError as exc:
+    except ValidationError as exc:
+        # Surface a clean, human-readable message. str(ValidationError) is a
+        # multi-line dump (type tags, input repr, a docs URL) that would
+        # otherwise reach the UI verbatim via the error response.
+        detail = "; ".join(
+            e["msg"].removeprefix("Value error, ") for e in exc.errors()
+        )
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
+            detail=detail,
         ) from exc
 
     cache_key = (start.isoformat(), end.isoformat())
