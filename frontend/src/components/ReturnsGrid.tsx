@@ -29,7 +29,7 @@ export function ReturnsGrid({ data }: ReturnsGridProps) {
       }}>
       {MAG7_TICKERS.map((ticker) => {
         const series = data.returns[ticker] ?? [];
-        const stats = data.stats[ticker] ?? { min: 0, max: 0, mean: 0 };
+        const stats = data.stats[ticker] ?? { min: 0, max: 0, mean: 0, count: 0 };
         return (
           <TickerCard
             key={ticker}

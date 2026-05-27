@@ -17,6 +17,17 @@ from tsdownsample import LTTBDownsampler
 ReturnPointDict = TypedDict("ReturnPointDict", {"date": str, "return": float})
 
 
+class TickerStatsDict(TypedDict):
+    """Per-ticker summary stats. `count` is the number of return observations
+    in the full series — independent of any chart downsampling — so the UI can
+    report the true number of trading days."""
+
+    min: float
+    max: float
+    mean: float
+    count: int
+
+
 def compute_daily_returns(prices: pd.DataFrame) -> pd.DataFrame:
     """Compute simple daily percentage returns from a price frame.
 
@@ -66,25 +77,27 @@ def _format_date(value: object) -> str:
     return str(pd.Timestamp(value).date().isoformat())
 
 
-def compute_summary_stats(returns: pd.DataFrame) -> dict[str, dict[str, float]]:
-    """Per-ticker summary statistics: min, max, mean.
+def compute_summary_stats(returns: pd.DataFrame) -> dict[str, TickerStatsDict]:
+    """Per-ticker summary statistics: min, max, mean, and observation count.
 
     Returned shape:
-        {"MSFT": {"min": -0.05, "max": 0.04, "mean": 0.001}, ...}
+        {"MSFT": {"min": -0.05, "max": 0.04, "mean": 0.001, "count": 1253}, ...}
 
-    Computed on the backend so the frontend doesn't have to re-derive,
-    and so the same numbers appear in the summary table and per-card stats.
+    Computed on the backend (on the full series) so the frontend doesn't have
+    to re-derive, the same numbers appear in the summary table and per-card
+    stats, and `count` stays accurate even when the chart series is downsampled.
     """
-    stats: dict[str, dict[str, float]] = {}
+    stats: dict[str, TickerStatsDict] = {}
     for ticker in returns.columns:
         series = returns[ticker].dropna()
         if series.empty:
-            stats[ticker] = {"min": 0.0, "max": 0.0, "mean": 0.0}
+            stats[ticker] = {"min": 0.0, "max": 0.0, "mean": 0.0, "count": 0}
             continue
         stats[ticker] = {
             "min": float(series.min()),
             "max": float(series.max()),
             "mean": float(series.mean()),
+            "count": int(series.size),
         }
     return stats
 

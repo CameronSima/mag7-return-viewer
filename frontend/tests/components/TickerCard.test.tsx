@@ -15,7 +15,7 @@ describe("TickerCard", () => {
       { date: "2024-01-02", return: 0.01 },
       { date: "2024-01-03", return: -0.005 },
     ],
-    stats: { min: -0.005, max: 0.01, mean: 0.0025 },
+    stats: { min: -0.005, max: 0.01, mean: 0.0025, count: 2 },
   };
 
   it("renders the ticker symbol and chart", () => {
@@ -38,7 +38,7 @@ describe("TickerCard", () => {
       <TickerCard
         ticker="MSFT"
         data={[]}
-        stats={{ min: 0, max: 0, mean: 0 }}
+        stats={{ min: 0, max: 0, mean: 0, count: 0 }}
       />,
     );
     expect(screen.getByText("MSFT")).toBeInTheDocument();

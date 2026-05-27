@@ -96,7 +96,7 @@ describe("App", () => {
         }
         return HttpResponse.json({
           returns: { MSFT: [{ date: "2024-01-02", return: 0.01 }] },
-          stats: { MSFT: { min: 0.01, max: 0.01, mean: 0.01 } },
+          stats: { MSFT: { min: 0.01, max: 0.01, mean: 0.01, count: 1 } },
         });
       }),
     );

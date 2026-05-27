@@ -16,6 +16,9 @@ export interface TickerStats {
   min: number;
   max: number;
   mean: number;
+  /** Number of return observations (trading days) in the full series.
+   *  Independent of chart downsampling, so it reflects true days. */
+  count: number;
 }
 
 /** Complete response from GET /returns. */

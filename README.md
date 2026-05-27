@@ -155,9 +155,10 @@ library returns the indices of the kept points, so date/return pairs survive
 intact. This brings the full-history payload to ~0.7 MB.
 
 Crucially, **summary stats are computed on the full daily series, before
-downsampling**, so min/max/mean stay exact. The only effect is on the rendered
-line: LTTB usually keeps the global extreme points, but isn't guaranteed to, so
-a chart's lowest visible point can be a hair shallower than the reported `min`.
+downsampling**, so min/max/mean — and the observation count shown as "Days" in
+the summary table — stay exact. The only effect is on the rendered line: LTTB
+usually keeps the global extreme points, but isn't guaranteed to, so a chart's
+lowest visible point can be a hair shallower than the reported `min`.
 yfinance can't do this for us — its coarser `interval`s (`1wk`, `1mo`) would
 compute *weekly/monthly* returns, a different metric than the daily returns
 specified, so the thinning happens server-side after the daily math.
