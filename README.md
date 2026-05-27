@@ -164,6 +164,17 @@ compute *weekly/monthly* returns, a different metric than the daily returns
 specified, so the thinning happens server-side after the daily math.
 Ranges under ~8 years are below the cap and never touched.
 
+**On the choice of 2000:** it balances zoom detail (enough points that
+drag-zooming still reveals structure) against payload size. It's deliberately
+more than a ~300px card can resolve, so over multi-decade ranges the overview
+reads as a dense band. That's partly overplotting, but mostly the honest
+texture of daily returns over that horizon — no point count smooths it away.
+A cleaner long-range overview would mean lowering the cap (at the cost of zoom
+detail), making the target track the chart's pixel width, or showing a less
+noisy series (rolling volatility, cumulative return) — all deferred as out of
+scope here. `MAX_CHART_POINTS` is a single constant, so the trade-off is one
+line to revisit.
+
 ### Free MUI X, not paid
 
 The MUI X `DateRangePicker` is behind a commercial license. I use two
