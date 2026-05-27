@@ -132,6 +132,18 @@ points and would force me to write zoom/pan/tooltip handlers by hand.
 Plotly ships all of that out of the box and remains performant on
 multi-year ranges. The cost is bundle size — see "What I'd do next."
 
+### Per-card y-axis scaling
+
+Each ticker's chart auto-scales its y-axis to its own min/max rather than
+sharing a common scale across the grid. This optimizes for reading the
+*shape* of each name's return series independently — the trade-off is that
+magnitudes aren't visually comparable across cards (e.g. a ±1% swing on one
+card can look as dramatic as a ±4% swing on another). The per-card min/max/mean
+stats and the summary table give the absolute numbers, so the scale only
+affects the visual sweep, not the data. A shared y-axis (or a toggle between
+the two modes) would be a reasonable enhancement if cross-ticker volatility
+comparison became a priority.
+
 ### Free MUI X, not paid
 
 The MUI X `DateRangePicker` is behind a commercial license. I use two
