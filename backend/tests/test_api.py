@@ -1,0 +1,47 @@
+"""End-to-end tests for the /returns endpoint using a fake price fetcher."""
+
+from fastapi.testclient import TestClient
+
+
+def test_returns_endpoint_happy_path(client: TestClient) -> None:
+    """Valid range returns 200 with both returns and stats."""
+    response = client.get("/returns?start=2024-01-02&end=2024-01-08")
+
+    assert response.status_code == 200
+    body = response.json()
+
+    assert "returns" in body
+    assert "stats" in body
+    assert "MSFT" in body["returns"]
+    assert "AAPL" in body["returns"]
+    assert body["stats"]["MSFT"]["mean"] > 0
+
+
+def test_returns_endpoint_uses_cache(client: TestClient) -> None:
+    """Second identical request should not call the price fetcher again."""
+    client.get("/returns?start=2024-01-02&end=2024-01-08")
+    client.get("/returns?start=2024-01-02&end=2024-01-08")
+
+    assert client.fake_fetcher.call_count == 1  # type: ignore[attr-defined]
+
+
+def test_returns_endpoint_rejects_inverted_range(client: TestClient) -> None:
+    """end < start should be 422 with a readable message."""
+    response = client.get("/returns?start=2024-01-08&end=2024-01-02")
+
+    assert response.status_code == 422
+    assert "end date" in response.json()["detail"].lower()
+
+
+def test_returns_endpoint_handles_upstream_failure(client: TestClient) -> None:
+    """A PriceFetchError should translate to 502, not crash."""
+    from app.services.prices import PriceFetchError
+
+    def boom(*_a, **_kw):
+        raise PriceFetchError("simulated yfinance outage")
+
+    client.fake_fetcher.fetch = boom  # type: ignore[attr-defined,method-assign]
+
+    response = client.get("/returns?start=2024-01-02&end=2024-01-08")
+    assert response.status_code == 502
+    assert "unavailable" in response.json()["detail"].lower()
