@@ -89,6 +89,6 @@ class YFinancePriceFetcher:
             # Single ticker case: flat columns with "Close" present.
             closes = pd.DataFrame({tickers[0]: raw["Close"]})
 
-        closes.index = pd.to_datetime(closes.index).date  # type: ignore[assignment]
+        closes.index = pd.to_datetime(closes.index).date
         closes.index.name = "date"
         return closes

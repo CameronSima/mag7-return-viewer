@@ -12,13 +12,17 @@ from app.config import CACHE_MAX_SIZE, CACHE_TTL_SECONDS
 
 K = TypeVar("K")
 V = TypeVar("V")
+# Keys are only ever consumed (lookup/insert arguments), never returned, so the
+# protocol's key parameter is contravariant. Values are both returned (get) and
+# consumed (set), so V stays invariant.
+K_contra = TypeVar("K_contra", contravariant=True)
 
 
-class Cache(Protocol, Generic[K, V]):
+class Cache(Protocol[K_contra, V]):
     """Minimal cache interface. Implementations may be in-memory or remote."""
 
-    def get(self, key: K) -> V | None: ...
-    def set(self, key: K, value: V) -> None: ...
+    def get(self, key: K_contra) -> V | None: ...
+    def set(self, key: K_contra, value: V) -> None: ...
     def clear(self) -> None: ...
 
 

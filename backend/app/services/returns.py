@@ -9,7 +9,6 @@ from typing import TypedDict
 
 import pandas as pd
 
-
 # Wire format for a single return observation. `return` is a Python keyword,
 # so the key must be declared via functional TypedDict syntax to match the
 # JSON contract (and the frontend's ReturnPoint type) exactly.
@@ -29,7 +28,11 @@ def compute_daily_returns(prices: pd.DataFrame) -> pd.DataFrame:
     """
     if prices.empty:
         return prices
-    returns = prices.pct_change()
+    # fill_method=None: do not forward-fill across missing prices. A gap should
+    # yield NaN returns (later dropped), not a fabricated 0% then a jump. This
+    # is the pandas 3.x default, but pinning it keeps behavior identical on the
+    # pandas>=2.2 floor, where the default still pads and emits a FutureWarning.
+    returns = prices.pct_change(fill_method=None)
     return returns.iloc[1:]  # drop first NaN row
 
 
@@ -58,7 +61,7 @@ def _format_date(value: object) -> str:
     """Coerce a pandas index value into ISO date string."""
     if isinstance(value, date):
         return value.isoformat()
-    return pd.Timestamp(value).date().isoformat()
+    return str(pd.Timestamp(value).date().isoformat())
 
 
 def compute_summary_stats(returns: pd.DataFrame) -> dict[str, dict[str, float]]:
