@@ -26,7 +26,3 @@ CACHE_TTL_SECONDS: Final[int] = 300
 # Maximum entries in the price cache. Keys are (start, end) tuples; with normal
 # usage this caps memory at a few hundred KB.
 CACHE_MAX_SIZE: Final[int] = 128
-
-# Maximum date range a single request can span. Prevents abuse and keeps
-# response sizes bounded.
-MAX_DATE_RANGE_DAYS: Final[int] = 365 * 5

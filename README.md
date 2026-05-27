@@ -190,9 +190,16 @@ That's it. Everything else matches the spec.
 - **Non-trading days are absent, not zero.** Weekends and holidays don't
   appear in the response. This is yfinance's behavior and is the right
   one — a "0% return on Saturday" is nonsense.
-- **A 5-year maximum range** is enforced server-side. Larger ranges would
-  produce response payloads in the tens of MB and aren't a likely use case
-  for this tool.
+- **No artificial range cap — full history is supported.** A request is
+  bounded only by what yfinance has (each ticker from its IPO onward). Even
+  the full ~14-year common history of all seven names is a ~1 MB response, so
+  a hard cap isn't worth the lost functionality. A range that genuinely has no
+  trading data (a weekend, a future range, or dates before any ticker existed)
+  returns a **422** with a clear message — distinct from a real upstream
+  failure (**502**), so the UI doesn't offer a pointless retry.
+- **Partial coverage is fine.** Over a long range, younger tickers simply
+  start later (META from its 2012 IPO, etc.); each chart shows its own
+  available history.
 - **The TTL cache is 5 minutes.** Daily closes don't change intraday for
   completed trading days, so 5 minutes is a balance between freshness near
   the current day's close and minimizing yfinance load.
@@ -214,12 +221,12 @@ cd frontend
 npm test
 ```
 
-**Backend** (12 tests):
+**Backend** (13 tests):
 
 - Pure logic: returns math, stats math, NaN handling, empty inputs
 - Cache: set/get, TTL expiration
-- API: happy path, cache-hit verification, validation rejection, upstream
-  failure → 502 translation
+- API: happy path, cache-hit verification, validation rejection, no-data
+  range → 422, upstream failure → 502 translation
 
 **Frontend** (13 tests):
 

@@ -54,3 +54,21 @@ def test_returns_endpoint_handles_upstream_failure(client: TestClient) -> None:
     response = client.get("/returns?start=2024-01-02&end=2024-01-08")
     assert response.status_code == 502
     assert "unavailable" in response.json()["detail"].lower()
+
+
+def test_returns_endpoint_no_data_returns_422(client: TestClient) -> None:
+    """A range with no trading data is a 422 (user fixable), not a 502."""
+    from app.services.prices import NoPriceDataError
+
+    def empty(*_a, **_kw):
+        raise NoPriceDataError("no price data returned for the requested range")
+
+    client.fake_fetcher.fetch = empty  # type: ignore[attr-defined,method-assign]
+
+    # A weekend-only range: valid input, but no trading days.
+    response = client.get("/returns?start=2024-01-06&end=2024-01-07")
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert "no trading data" in detail.lower()
+    # Must not look like an upstream outage (which would prompt a futile retry).
+    assert "unavailable" not in detail.lower()

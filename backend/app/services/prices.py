@@ -13,7 +13,16 @@ import yfinance as yf
 
 
 class PriceFetchError(Exception):
-    """Raised when price data cannot be retrieved or is unusable."""
+    """Raised when the upstream request itself fails (network, rate limit, etc.)."""
+
+
+class NoPriceDataError(Exception):
+    """Raised when the request succeeds but the range contains no price data.
+
+    Distinct from PriceFetchError so the API can tell apart "the upstream is
+    broken" (a 502, worth retrying) from "this otherwise-valid range has no
+    trading data" (a 422 the user fixes by picking different dates).
+    """
 
 
 class PriceFetcher(Protocol):
@@ -64,7 +73,7 @@ class YFinancePriceFetcher:
             raise PriceFetchError(f"yfinance request failed: {exc}") from exc
 
         if raw is None or raw.empty:
-            raise PriceFetchError("no price data returned for the requested range")
+            raise NoPriceDataError("no price data returned for the requested range")
 
         return self._extract_closes(raw, tickers)
 

@@ -8,8 +8,6 @@ from datetime import date
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.config import MAX_DATE_RANGE_DAYS
-
 
 class ReturnPoint(BaseModel):
     """A single daily return observation for a ticker.
@@ -60,6 +58,4 @@ class DateRangeQuery(BaseModel):
     def validate_range(self) -> "DateRangeQuery":
         if self.end < self.start:
             raise ValueError("end date must be on or after start date")
-        if (self.end - self.start).days > MAX_DATE_RANGE_DAYS:
-            raise ValueError(f"date range cannot exceed {MAX_DATE_RANGE_DAYS} days")
         return self
