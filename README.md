@@ -148,9 +148,11 @@ comparison became a priority.
 
 With no range cap, a full-history request is ~11k daily points per ticker
 (~2.4 MB). The backend thins each *charted* series to `MAX_CHART_POINTS`
-(2000) using LTTB (Largest-Triangle-Three-Buckets), which preserves the
-line's visual shape — including spikes — far better than every-Nth decimation.
-This brings the full-history payload to ~0.7 MB.
+(2000) with LTTB (Largest-Triangle-Three-Buckets) — via the `tsdownsample`
+library rather than a hand-rolled implementation — which preserves the line's
+visual shape, including spikes, far better than every-Nth decimation. The
+library returns the indices of the kept points, so date/return pairs survive
+intact. This brings the full-history payload to ~0.7 MB.
 
 Crucially, **summary stats are computed on the full daily series, before
 downsampling**, so min/max/mean stay exact. The only effect is on the rendered
