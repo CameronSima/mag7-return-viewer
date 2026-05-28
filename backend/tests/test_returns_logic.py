@@ -64,13 +64,15 @@ def test_summary_stats_handles_known_values(sample_prices: pd.DataFrame) -> None
     assert stats["AAPL"]["mean"] == pytest.approx(-0.01)
     assert stats["MSFT"]["min"] == pytest.approx(0.01)
     assert stats["MSFT"]["max"] == pytest.approx(0.01)
+    # count is the number of return observations (5 prices -> 4 returns).
+    assert stats["MSFT"]["count"] == 4
 
 
 def test_summary_stats_empty_series_does_not_crash() -> None:
     """A ticker column of all-NaN should produce zeros, not errors."""
     df = pd.DataFrame({"GHOST": [float("nan"), float("nan")]})
     stats = compute_summary_stats(df)
-    assert stats["GHOST"] == {"min": 0.0, "max": 0.0, "mean": 0.0}
+    assert stats["GHOST"] == {"min": 0.0, "max": 0.0, "mean": 0.0, "count": 0}
 
 
 def test_downsample_noop_when_below_threshold() -> None:

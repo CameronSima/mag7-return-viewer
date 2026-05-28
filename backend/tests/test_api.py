@@ -15,6 +15,9 @@ def test_returns_endpoint_happy_path(client: TestClient) -> None:
     assert "MSFT" in body["returns"]
     assert "AAPL" in body["returns"]
     assert body["stats"]["MSFT"]["mean"] > 0
+    # count is the true observation count (5 prices -> 4 returns), exposed
+    # so the summary table's "Days" survives chart downsampling.
+    assert body["stats"]["MSFT"]["count"] == 4
 
     # Each return point must use the wire contract keys "date" and "return"
     # (not "return_"); the frontend's ReturnPoint type and charts depend on it.

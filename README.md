@@ -103,13 +103,16 @@ via `pct_change()`. Two reasons:
 
 ### Server-computed summary statistics
 
-Min/max/mean per ticker are computed on the backend rather than in the
-frontend. Two reasons:
+Min/max/mean (and the observation count) per ticker are computed on the
+backend rather than in the frontend. Three reasons:
 
 1. Same numbers appear in the per-card stats and the summary table,
    guaranteed consistent.
 2. For large date ranges the frontend would be re-deriving stats from
    thousands of points on every render. Backend does it once.
+3. Since the chart series is downsampled (see "Downsampling long ranges"),
+   the frontend never sees the full series — so it *couldn't* derive accurate
+   min/max/count anyway. Computing on the backend keeps them exact.
 
 ### Dependency injection over module globals
 
@@ -155,13 +158,25 @@ library returns the indices of the kept points, so date/return pairs survive
 intact. This brings the full-history payload to ~0.7 MB.
 
 Crucially, **summary stats are computed on the full daily series, before
-downsampling**, so min/max/mean stay exact. The only effect is on the rendered
-line: LTTB usually keeps the global extreme points, but isn't guaranteed to, so
-a chart's lowest visible point can be a hair shallower than the reported `min`.
+downsampling**, so min/max/mean — and the observation count shown as "Days" in
+the summary table — stay exact. The only effect is on the rendered line: LTTB
+usually keeps the global extreme points, but isn't guaranteed to, so a chart's
+lowest visible point can be a hair shallower than the reported `min`.
 yfinance can't do this for us — its coarser `interval`s (`1wk`, `1mo`) would
 compute *weekly/monthly* returns, a different metric than the daily returns
 specified, so the thinning happens server-side after the daily math.
 Ranges under ~8 years are below the cap and never touched.
+
+**On the choice of 2000:** it balances zoom detail (enough points that
+drag-zooming still reveals structure) against payload size. It's deliberately
+more than a ~300px card can resolve, so over multi-decade ranges the overview
+reads as a dense band. That's partly overplotting, but mostly the honest
+texture of daily returns over that horizon — no point count smooths it away.
+A cleaner long-range overview would mean lowering the cap (at the cost of zoom
+detail), making the target track the chart's pixel width, or showing a less
+noisy series (rolling volatility, cumulative return) — all deferred as out of
+scope here. `MAX_CHART_POINTS` is a single constant, so the trade-off is one
+line to revisit.
 
 ### Free MUI X, not paid
 
@@ -179,9 +194,12 @@ free `DatePicker`s configured to enforce the range constraint via
 ```json
 {
   "returns": { "MSFT": [...], ... },
-  "stats":   { "MSFT": { "min": -0.05, "max": 0.04, "mean": 0.001 }, ... }
+  "stats":   { "MSFT": { "min": -0.05, "max": 0.04, "mean": 0.001, "count": 1253 }, ... }
 }
 ```
+
+(`count` is the number of return observations — trading days — in the full
+series, surfaced as "Days" in the summary table.)
 
 This lets the bonus "summary table across all 7 names" come back in the
 same network round-trip and stay atomic with respect to the date range.
@@ -309,7 +327,7 @@ acadian-mag7/
 │   │   └── services/
 │   │       ├── cache.py       # TTL cache + protocol
 │   │       ├── prices.py      # yfinance wrapper + protocol
-│   │       └── returns.py     # Pure returns math
+│   │       └── returns.py     # Pure returns math + LTTB downsampling
 │   └── tests/
 │       ├── conftest.py
 │       ├── test_returns_logic.py

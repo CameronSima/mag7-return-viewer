@@ -25,11 +25,16 @@ class ReturnPoint(BaseModel):
 
 
 class TickerStats(BaseModel):
-    """Per-ticker summary statistics over the requested range."""
+    """Per-ticker summary statistics over the requested range.
+
+    `count` is the number of return observations (trading days) in the full
+    series — not the downsampled chart series — so the UI reports true days.
+    """
 
     min: float
     max: float
     mean: float
+    count: int
 
 
 class ReturnsResponse(BaseModel):

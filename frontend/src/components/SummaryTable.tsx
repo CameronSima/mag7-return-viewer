@@ -24,9 +24,15 @@ interface SummaryRow {
  */
 export function SummaryTable({ data }: SummaryTableProps) {
   const rows: SummaryRow[] = MAG7_TICKERS.map((ticker) => {
-    const stats = data.stats[ticker] ?? { min: 0, max: 0, mean: 0 };
-    const observations = data.returns[ticker]?.length ?? 0;
-    return { id: ticker, ticker, ...stats, observations };
+    const { min, mean, max, count } = data.stats[ticker] ?? {
+      min: 0,
+      max: 0,
+      mean: 0,
+      count: 0,
+    };
+    // "Days" is the true observation count from the backend, not the length of
+    // the (possibly downsampled) chart series.
+    return { id: ticker, ticker, min, mean, max, observations: count };
   });
 
   return (
