@@ -53,11 +53,9 @@ def get_returns(
         # Surface a clean, human-readable message. str(ValidationError) is a
         # multi-line dump (type tags, input repr, a docs URL) that would
         # otherwise reach the UI verbatim via the error response.
-        detail = "; ".join(
-            e["msg"].removeprefix("Value error, ") for e in exc.errors()
-        )
+        detail = "; ".join(e["msg"].removeprefix("Value error, ") for e in exc.errors())
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=detail,
         ) from exc
 
@@ -73,7 +71,7 @@ def get_returns(
         # a future range, or dates before any ticker existed). This is a user
         # input issue, not an upstream failure — 422, no point retrying.
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="No trading data found for the selected range. "
             "Pick a range that includes trading days.",
         ) from exc
