@@ -14,7 +14,7 @@ resolution-markers = [
 ]
 
 [[package]]
-name = "acadian-mag7-backend"
+name = "mag7-backend"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
