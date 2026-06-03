@@ -18,6 +18,10 @@ MAG7_TICKERS: Final[tuple[str, ...]] = (
     "TSLA",
 )
 
+# Set form of the MAG7 tickers, for O(1) membership checks when validating a
+# caller-supplied ticker subset.
+MAG7_TICKER_SET: Final[frozenset[str]] = frozenset(MAG7_TICKERS)
+
 # Cache TTL in seconds. Daily close prices don't change intraday for completed
 # trading days, so a 5-minute TTL is a balance between freshness (for recent
 # requests near market close) and minimizing yfinance load.

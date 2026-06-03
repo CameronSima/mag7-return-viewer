@@ -33,6 +33,42 @@ def test_returns_endpoint_uses_cache(client: TestClient) -> None:
     assert client.fake_fetcher.call_count == 1  # type: ignore[attr-defined]
 
 
+def test_returns_endpoint_accepts_ticker_subset(client: TestClient) -> None:
+    """A tickers= subset is passed through to the fetcher."""
+    response = client.get(
+        "/returns?start=2024-01-02&end=2024-01-08&tickers=MSFT&tickers=AAPL"
+    )
+    assert response.status_code == 200
+    # The fake fetcher records what it was asked for.
+    assert client.fake_fetcher.last_tickers == ("MSFT", "AAPL")  # type: ignore[attr-defined]
+
+
+def test_returns_endpoint_rejects_unknown_ticker(client: TestClient) -> None:
+    """A symbol outside the MAG7 whitelist is a 422, not a silent fetch."""
+    response = client.get("/returns?start=2024-01-02&end=2024-01-08&tickers=IBM")
+    assert response.status_code == 422
+    assert "unknown ticker" in response.json()["detail"].lower()
+
+
+def test_returns_endpoint_ticker_set_is_part_of_cache_key(client: TestClient) -> None:
+    """Different ticker subsets must not collide in the cache.
+
+    This is the bug the cache key fix prevents: a {MSFT} response must never be
+    served to a later {MSFT, AAPL} request for the same dates.
+    """
+    client.get("/returns?start=2024-01-02&end=2024-01-08&tickers=MSFT")
+    client.get("/returns?start=2024-01-02&end=2024-01-08&tickers=MSFT&tickers=AAPL")
+    # Two distinct subsets -> two upstream fetches (no false cache hit).
+    assert client.fake_fetcher.call_count == 2  # type: ignore[attr-defined]
+
+
+def test_returns_endpoint_cache_key_is_order_independent(client: TestClient) -> None:
+    """The same subset in a different order shares one cache entry."""
+    client.get("/returns?start=2024-01-02&end=2024-01-08&tickers=MSFT&tickers=AAPL")
+    client.get("/returns?start=2024-01-02&end=2024-01-08&tickers=AAPL&tickers=MSFT")
+    assert client.fake_fetcher.call_count == 1  # type: ignore[attr-defined]
+
+
 def test_returns_endpoint_rejects_inverted_range(client: TestClient) -> None:
     """end < start should be 422 with a clean, human-readable message."""
     response = client.get("/returns?start=2024-01-08&end=2024-01-02")

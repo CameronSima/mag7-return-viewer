@@ -10,7 +10,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import ValidationError
 
-from app.config import MAG7_TICKERS, MAX_CHART_POINTS
+from app.config import MAG7_TICKER_SET, MAG7_TICKERS, MAX_CHART_POINTS
 from app.dependencies import get_cache, get_price_fetcher
 from app.models import DateRangeQuery, ReturnsResponse
 from app.services.cache import Cache
@@ -26,7 +26,35 @@ router = APIRouter()
 
 # Cache value shape: the full computed response, ready to return.
 CachedPayload = dict[str, object]
-CacheType = Cache[tuple[str, str], CachedPayload]
+# Cache key is (start, end, selected-tickers). The ticker set is part of the
+# key — omitting it would serve a 2-ticker response to a later 7-ticker request
+# for the same dates. The tuple is canonicalized (sorted, deduped) before use so
+# requests that differ only in ticker order still share a cache entry.
+CacheType = Cache[tuple[str, str, tuple[str, ...]], CachedPayload]
+
+
+def _resolve_tickers(raw: list[str] | None) -> tuple[str, ...]:
+    """Normalize and validate a caller-supplied ticker subset.
+
+    Returns the full MAG7 set when none are requested. Otherwise upper-cases,
+    dedupes (preserving request order), and rejects any symbol outside the
+    MAG7 whitelist with a 422 — we only fetch names this tool knows about.
+    """
+    if not raw:
+        return MAG7_TICKERS
+    resolved: list[str] = []
+    for symbol in raw:
+        normalized = symbol.strip().upper()
+        if not normalized:
+            continue
+        if normalized not in MAG7_TICKER_SET:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"unknown ticker '{symbol}'; choose from {', '.join(MAG7_TICKERS)}",
+            )
+        if normalized not in resolved:
+            resolved.append(normalized)
+    return tuple(resolved) if resolved else MAG7_TICKERS
 
 
 @router.get("/returns", response_model=ReturnsResponse)
@@ -35,6 +63,10 @@ def get_returns(
     end: Annotated[date, Query(description="End date, inclusive (YYYY-MM-DD)")],
     cache: Annotated[CacheType, Depends(get_cache)],
     price_fetcher: Annotated[PriceFetcher, Depends(get_price_fetcher)],
+    tickers: Annotated[
+        list[str] | None,
+        Query(description="Subset of MAG7 tickers; defaults to all seven"),
+    ] = None,
 ) -> CachedPayload:
     """Return daily returns and summary stats for the MAG7 over a date range.
 
@@ -59,13 +91,16 @@ def get_returns(
             detail=detail,
         ) from exc
 
-    cache_key = (start.isoformat(), end.isoformat())
+    selected = _resolve_tickers(tickers)
+    # Sorted tuple so the key is order-independent: {MSFT, AAPL} and
+    # {AAPL, MSFT} hit the same entry.
+    cache_key = (start.isoformat(), end.isoformat(), tuple(sorted(selected)))
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
 
     try:
-        prices = price_fetcher.fetch(MAG7_TICKERS, start, end)
+        prices = price_fetcher.fetch(selected, start, end)
     except NoPriceDataError as exc:
         # Valid request, but the range has no trading data (e.g. a weekend,
         # a future range, or dates before any ticker existed). This is a user

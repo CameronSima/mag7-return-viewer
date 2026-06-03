@@ -10,9 +10,14 @@ import type { ReturnsResponse } from "@/types";
 export async function fetchReturns(
   start: string,
   end: string,
+  tickers?: string[],
   signal?: AbortSignal,
 ): Promise<ReturnsResponse> {
-  const url = `/api/returns?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+  const params = new URLSearchParams({ start, end });
+  // Repeated `tickers` params (?tickers=MSFT&tickers=AAPL) map to FastAPI's
+  // list[str]. Omitted entirely -> backend defaults to all seven.
+  for (const ticker of tickers ?? []) params.append("tickers", ticker);
+  const url = `/api/returns?${params.toString()}`;
 
   let response: Response;
   try {

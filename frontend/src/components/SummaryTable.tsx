@@ -25,7 +25,11 @@ interface SummaryRow {
  * (free Community edition) for sort/resize for free.
  */
 export function SummaryTable({ data }: SummaryTableProps) {
-  const rows: SummaryRow[] = MAG7_TICKERS.map((ticker) => {
+  // Canonical order, restricted to the tickers present in the response so a
+  // subset selection shows only the chosen names.
+  const rows: SummaryRow[] = MAG7_TICKERS.filter(
+    (ticker) => ticker in data.stats,
+  ).map((ticker) => {
     const { min, mean, max, count, vol, sharpe } = data.stats[ticker] ?? {
       min: 0,
       max: 0,

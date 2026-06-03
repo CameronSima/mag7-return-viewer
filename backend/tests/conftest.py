@@ -37,9 +37,11 @@ class FakePriceFetcher:
     def __init__(self, df: pd.DataFrame) -> None:
         self.df = df
         self.call_count = 0
+        self.last_tickers: tuple[str, ...] | None = None
 
     def fetch(self, tickers, start: date, end: date) -> pd.DataFrame:
         self.call_count += 1
+        self.last_tickers = tuple(tickers)
         return self.df
 
 

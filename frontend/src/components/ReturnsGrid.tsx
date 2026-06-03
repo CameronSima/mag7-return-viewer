@@ -27,7 +27,9 @@ export function ReturnsGrid({ data }: ReturnsGridProps) {
           lg: "repeat(4, 1fr)",
         },
       }}>
-      {MAG7_TICKERS.map((ticker) => {
+      {/* Canonical order, but only the tickers the response actually carries
+          (the user may have selected a subset). */}
+      {MAG7_TICKERS.filter((ticker) => ticker in data.stats).map((ticker) => {
         const series = data.returns[ticker] ?? [];
         const stats = data.stats[ticker] ?? {
           min: 0,

@@ -2,12 +2,15 @@ import { useState } from "react";
 import { Box, Container, Stack, Typography } from "@mui/material";
 import { Dayjs } from "dayjs";
 import { DateRangePicker } from "./components/DateRangePicker";
+import { TickerSelect } from "./components/TickerSelect";
 import { ReturnsGrid } from "./components/ReturnsGrid";
 import { SummaryTable } from "./components/SummaryTable";
 import { LoadingState } from "./components/LoadingState";
 import { ErrorState } from "./components/ErrorState";
 import { useReturns } from "./hooks/useReturns";
 import { ApiError } from "./api/returns";
+import { MAG7_TICKERS } from "./types";
+import type { Ticker } from "./types";
 
 /**
  * Root view. Owns the date range state, passes it to the data hook,
@@ -16,10 +19,13 @@ import { ApiError } from "./api/returns";
 export default function App() {
   const [start, setStart] = useState<Dayjs | null>(null);
   const [end, setEnd] = useState<Dayjs | null>(null);
+  // Default to all seven; the selector narrows the set.
+  const [tickers, setTickers] = useState<Ticker[]>([...MAG7_TICKERS]);
 
   const query = useReturns(
     start ? start.format("YYYY-MM-DD") : null,
     end ? end.format("YYYY-MM-DD") : null,
+    tickers,
   );
 
   // Don't show retry on validation errors — the user input is the problem.
@@ -39,18 +45,25 @@ export default function App() {
           </Typography>
         </Box>
 
-        <DateRangePicker
-          start={start}
-          end={end}
-          onChange={(s, e) => {
-            setStart(s);
-            setEnd(e);
-          }}
-        />
+        <Stack spacing={2}>
+          <DateRangePicker
+            start={start}
+            end={end}
+            onChange={(s, e) => {
+              setStart(s);
+              setEnd(e);
+            }}
+          />
+          <TickerSelect selected={tickers} onChange={setTickers} />
+        </Stack>
 
         {!start || !end ? (
           <Typography variant="body2" color="text.secondary">
             Select a start and end date to load returns.
+          </Typography>
+        ) : tickers.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            Select at least one ticker to load returns.
           </Typography>
         ) : query.isLoading ? (
           <LoadingState />

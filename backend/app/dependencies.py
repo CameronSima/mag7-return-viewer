@@ -11,7 +11,7 @@ from app.services.prices import PriceFetcher, YFinancePriceFetcher
 
 
 @lru_cache(maxsize=1)
-def get_cache() -> Cache[tuple[str, str], dict[str, object]]:
+def get_cache() -> Cache[tuple[str, str, tuple[str, ...]], dict[str, object]]:
     """Singleton cache for the lifetime of the process."""
     return InMemoryTTLCache()
 
