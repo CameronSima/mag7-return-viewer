@@ -35,6 +35,10 @@ class TickerStats(BaseModel):
     max: float
     mean: float
     count: int
+    # Annualized volatility (daily std * sqrt(252)) and annualized Sharpe
+    # (0% risk-free rate). 0.0 when the series is too short to define a spread.
+    vol: float
+    sharpe: float
 
 
 class ReturnsResponse(BaseModel):

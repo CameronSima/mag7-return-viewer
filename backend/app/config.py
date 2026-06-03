@@ -27,6 +27,11 @@ CACHE_TTL_SECONDS: Final[int] = 300
 # usage this caps memory at a few hundred KB.
 CACHE_MAX_SIZE: Final[int] = 128
 
+# Trading days per year, used to annualize daily volatility and the Sharpe
+# ratio (std * sqrt(252), and daily-Sharpe * sqrt(252)). 252 is the
+# conventional US-equity figure; a single constant so it's easy to revisit.
+TRADING_DAYS_PER_YEAR: Final[int] = 252
+
 # Max points per ticker sent to the chart. Longer ranges (e.g. full history,
 # ~11k daily points for AAPL) are downsampled to this for payload/render size;
 # summary stats are still computed on the full series. ~8 years of daily data

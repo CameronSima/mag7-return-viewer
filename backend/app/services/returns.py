@@ -4,12 +4,15 @@ Pure functions operating on a price DataFrame. No I/O, no caching, no
 framework dependencies — trivially unit-testable.
 """
 
+import math
 from datetime import date
 from typing import TypedDict
 
 import numpy as np
 import pandas as pd
 from tsdownsample import LTTBDownsampler
+
+from app.config import TRADING_DAYS_PER_YEAR
 
 # Wire format for a single return observation. `return` is a Python keyword,
 # so the key must be declared via functional TypedDict syntax to match the
@@ -20,12 +23,18 @@ ReturnPointDict = TypedDict("ReturnPointDict", {"date": str, "return": float})
 class TickerStatsDict(TypedDict):
     """Per-ticker summary stats. `count` is the number of return observations
     in the full series — independent of any chart downsampling — so the UI can
-    report the true number of trading days."""
+    report the true number of trading days.
+
+    `vol` is annualized volatility (daily sample std * sqrt(252)) and `sharpe`
+    is the annualized Sharpe ratio assuming a 0% risk-free rate. Both are
+    risk metrics a quant audience expects alongside the raw return stats."""
 
     min: float
     max: float
     mean: float
     count: int
+    vol: float
+    sharpe: float
 
 
 def compute_daily_returns(prices: pd.DataFrame) -> pd.DataFrame:
@@ -87,17 +96,39 @@ def compute_summary_stats(returns: pd.DataFrame) -> dict[str, TickerStatsDict]:
     to re-derive, the same numbers appear in the summary table and per-card
     stats, and `count` stays accurate even when the chart series is downsampled.
     """
+    ann_factor = math.sqrt(TRADING_DAYS_PER_YEAR)
     stats: dict[str, TickerStatsDict] = {}
     for ticker in returns.columns:
         series = returns[ticker].dropna()
         if series.empty:
-            stats[ticker] = {"min": 0.0, "max": 0.0, "mean": 0.0, "count": 0}
+            stats[ticker] = {
+                "min": 0.0,
+                "max": 0.0,
+                "mean": 0.0,
+                "count": 0,
+                "vol": 0.0,
+                "sharpe": 0.0,
+            }
             continue
+        mean = float(series.mean())
+        # Sample std (ddof=1, pandas default); NaN for a single observation.
+        std = float(series.std())
+        if math.isnan(std) or std == 0.0:
+            # Degenerate spread (n<2 or a constant series): vol and Sharpe are
+            # undefined. Report 0.0 rather than NaN/inf so the wire stays clean.
+            vol = 0.0
+            sharpe = 0.0
+        else:
+            vol = std * ann_factor
+            # (mean / std) is the daily Sharpe; scale by sqrt(252) to annualize.
+            sharpe = (mean / std) * ann_factor
         stats[ticker] = {
             "min": float(series.min()),
             "max": float(series.max()),
-            "mean": float(series.mean()),
+            "mean": mean,
             "count": int(series.size),
+            "vol": vol,
+            "sharpe": sharpe,
         }
     return stats
 

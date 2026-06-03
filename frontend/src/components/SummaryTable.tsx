@@ -2,7 +2,7 @@ import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
 import { Box, Typography } from "@mui/material";
 import type { ReturnsResponse } from "@/types";
 import { MAG7_TICKERS } from "@/types";
-import { formatReturnPct, isPositive } from "@/utils/stats";
+import { formatPct, formatRatio, formatReturnPct, isPositive } from "@/utils/stats";
 
 interface SummaryTableProps {
   data: ReturnsResponse;
@@ -14,6 +14,8 @@ interface SummaryRow {
   min: number;
   mean: number;
   max: number;
+  vol: number;
+  sharpe: number;
   observations: number;
 }
 
@@ -24,15 +26,17 @@ interface SummaryRow {
  */
 export function SummaryTable({ data }: SummaryTableProps) {
   const rows: SummaryRow[] = MAG7_TICKERS.map((ticker) => {
-    const { min, mean, max, count } = data.stats[ticker] ?? {
+    const { min, mean, max, count, vol, sharpe } = data.stats[ticker] ?? {
       min: 0,
       max: 0,
       mean: 0,
       count: 0,
+      vol: 0,
+      sharpe: 0,
     };
     // "Days" is the true observation count from the backend, not the length of
     // the (possibly downsampled) chart series.
-    return { id: ticker, ticker, min, mean, max, observations: count };
+    return { id: ticker, ticker, min, mean, max, vol, sharpe, observations: count };
   });
 
   return (
@@ -69,6 +73,28 @@ const renderPctCell = (params: GridRenderCellParams<SummaryRow, number>) => {
   );
 };
 
+// Volatility is a non-negative magnitude — render it neutrally (no green/red
+// and no sign), so it doesn't read as a "good/bad" return.
+const renderVolCell = (params: GridRenderCellParams<SummaryRow, number>) => (
+  <Box component="span" sx={{ fontFeatureSettings: '"tnum"' }}>
+    {formatPct(params.value ?? 0)}
+  </Box>
+);
+
+const renderSharpeCell = (params: GridRenderCellParams<SummaryRow, number>) => {
+  const value = params.value ?? 0;
+  return (
+    <Box
+      component="span"
+      sx={{
+        color: isPositive(value) ? "success.main" : "error.main",
+        fontFeatureSettings: '"tnum"',
+      }}>
+      {formatRatio(value)}
+    </Box>
+  );
+};
+
 const columns: GridColDef<SummaryRow>[] = [
   { field: "ticker", headerName: "Ticker", flex: 1, minWidth: 80 },
   {
@@ -94,6 +120,22 @@ const columns: GridColDef<SummaryRow>[] = [
     minWidth: 90,
     type: "number",
     renderCell: renderPctCell,
+  },
+  {
+    field: "vol",
+    headerName: "Ann. Vol",
+    flex: 1,
+    minWidth: 90,
+    type: "number",
+    renderCell: renderVolCell,
+  },
+  {
+    field: "sharpe",
+    headerName: "Sharpe",
+    flex: 1,
+    minWidth: 90,
+    type: "number",
+    renderCell: renderSharpeCell,
   },
   {
     field: "observations",

@@ -66,13 +66,40 @@ def test_summary_stats_handles_known_values(sample_prices: pd.DataFrame) -> None
     assert stats["MSFT"]["max"] == pytest.approx(0.01)
     # count is the number of return observations (5 prices -> 4 returns).
     assert stats["MSFT"]["count"] == 4
+    # The sample returns are constant (1% each day), so the spread is zero:
+    # volatility and Sharpe are undefined and reported as 0.0, not NaN/inf.
+    assert stats["MSFT"]["vol"] == pytest.approx(0.0)
+    assert stats["MSFT"]["sharpe"] == pytest.approx(0.0)
+
+
+def test_summary_stats_vol_and_sharpe_annualized() -> None:
+    """Vol annualizes the daily sample std; Sharpe is daily-Sharpe * sqrt(252)."""
+    import math
+
+    # Returns alternating +1% / -1% over five days: mean ~0, nonzero std.
+    series = pd.Series([0.01, -0.01, 0.01, -0.01, 0.01])
+    df = pd.DataFrame({"X": series})
+    stats = compute_summary_stats(df)
+
+    ann = math.sqrt(252)
+    expected_std = float(series.std())  # sample std, ddof=1
+    assert stats["X"]["vol"] == pytest.approx(expected_std * ann)
+    expected_sharpe = (float(series.mean()) / expected_std) * ann
+    assert stats["X"]["sharpe"] == pytest.approx(expected_sharpe)
 
 
 def test_summary_stats_empty_series_does_not_crash() -> None:
     """A ticker column of all-NaN should produce zeros, not errors."""
     df = pd.DataFrame({"GHOST": [float("nan"), float("nan")]})
     stats = compute_summary_stats(df)
-    assert stats["GHOST"] == {"min": 0.0, "max": 0.0, "mean": 0.0, "count": 0}
+    assert stats["GHOST"] == {
+        "min": 0.0,
+        "max": 0.0,
+        "mean": 0.0,
+        "count": 0,
+        "vol": 0.0,
+        "sharpe": 0.0,
+    }
 
 
 def test_downsample_noop_when_below_threshold() -> None:

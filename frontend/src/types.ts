@@ -19,6 +19,10 @@ export interface TickerStats {
   /** Number of return observations (trading days) in the full series.
    *  Independent of chart downsampling, so it reflects true days. */
   count: number;
+  /** Annualized volatility: daily sample std * sqrt(252). */
+  vol: number;
+  /** Annualized Sharpe ratio, assuming a 0% risk-free rate. */
+  sharpe: number;
 }
 
 /** Complete response from GET /returns. */
