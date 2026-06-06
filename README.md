@@ -1,20 +1,30 @@
-# MAG7 Returns Viewer
+# Stock Comparison
 
-A full-stack application that visualizes daily returns for the MAG7 stocks
-(MSFT, AAPL, GOOGL, AMZN, NVDA, META, TSLA) over a user-selected date range.
+A free, no-sign-up tool for comparing the long-run performance of any stocks or
+ETFs — **growth, risk, and correlation, side by side.** Type some tickers, pick
+a range, and get a normalized growth chart, a sortable risk/return table, and a
+correlation heatmap. Every view is encoded in the URL, so any comparison is a
+copy-pasteable link.
 
 **Backend:** FastAPI + yfinance + pandas, with a TTL cache and dependency
-injection. **Frontend:** React 19 + TypeScript + MUI + MUI X + Plotly,
-with React Query for server state.
+injection. **Frontend:** React 19 + TypeScript + MUI + MUI X + Plotly, with
+React Query for server state and the URL as the source of truth for shared state.
+
+> It started life as a 7-stock daily-returns viewer (the MAG7); the
+> comparison engine generalizes it to arbitrary tickers. The original
+> `GET /returns` endpoint and its per-ticker daily-return contract are still
+> present and tested — the comparison engine is additive.
 
 ---
 
 ## Table of contents
 
 - [Quick start](#quick-start)
+- [What it does](#what-it-does)
 - [Architecture](#architecture)
 - [Key decisions](#key-decisions)
-- [Deviations from the spec](#deviations-from-the-spec)
+- [API contract](#api-contract)
+- [The metrics, defined](#the-metrics-defined)
 - [Assumptions](#assumptions)
 - [Testing](#testing)
 - [What I'd do next](#what-id-do-next)
@@ -43,206 +53,198 @@ npm install
 npm run dev                            # serves http://localhost:5173
 ```
 
-Open [http://localhost:5173](http://localhost:5173). Pick a date range. Done.
+Open [http://localhost:5173](http://localhost:5173). It loads with a default
+comparison (the leaders vs. the S&P 500 over five years). Add or remove tickers,
+change the range, hit **Share link**. API docs are auto-generated at
+[http://localhost:8000/docs](http://localhost:8000/docs).
 
-API docs are auto-generated at [http://localhost:8000/docs](http://localhost:8000/docs).
+---
+
+## What it does
+
+Enter up to 10 tickers (stocks or ETFs) and a date range. The app shows:
+
+- **Growth of $1** — every ticker rebased to 1.0 at the common start date and
+  overlaid on one shared axis, so magnitudes are directly comparable. Linear/log
+  toggle for multi-fold differences.
+- **Risk & return table** — total return, CAGR, annualized volatility, Sharpe,
+  max drawdown, best/worst day, and trading-day count per ticker. Sortable.
+- **Return correlation** — a heatmap of pairwise daily-return correlations, so
+  diversifiers (low/negative correlation) stand out from names that move together.
+
+Plus quick presets (MAG7, MAG7 vs. S&P 500, the index ETFs), a warning when a
+typo'd symbol has no data, and the shareable URL.
 
 ---
 
 ## Architecture
 
 ```
- ┌──────────────┐    GET /api/returns   ┌─────────────────┐
- │   React UI   │ ───────────────────▶  │  FastAPI route  │
- │ (TS + MUI)   │ ◀───────────────────  │   (thin layer)  │
- └──────────────┘                       └────────┬────────┘
-                                                 │
-                              ┌──────────────────┼──────────────────┐
-                              ▼                  ▼                  ▼
-                       ┌───────────┐      ┌───────────┐      ┌─────────────┐
-                       │ TTL cache │      │  Prices   │      │   Returns   │
-                       │ (keyed by │      │ (yfinance)│      │  (pure math)│
-                       │ date range│      │           │      │             │
-                       └───────────┘      └───────────┘      └─────────────┘
+ ┌──────────────┐   GET /api/compare    ┌─────────────────┐
+ │   React UI   │   ?tickers=…&start=…  │  FastAPI route  │
+ │ (URL = state)│ ───────────────────▶  │   (thin layer)  │
+ └──────────────┘ ◀───────────────────  └────────┬────────┘
+                                                  │
+                          ┌───────────────────────┼───────────────────────┐
+                          ▼                       ▼                       ▼
+                   ┌───────────┐           ┌───────────┐          ┌──────────────────┐
+                   │ TTL cache │           │  Prices   │          │    Analytics     │
+                   │ (keyed by │           │ (yfinance)│          │   (pure math:    │
+                   │ tickers + │           │           │          │ growth, stats,   │
+                   │  range)   │           │           │          │ correlation)     │
+                   └───────────┘           └───────────┘          └──────────────────┘
 ```
 
 **Separation of concerns is the central design choice.** Every external
-dependency (yfinance, the cache, the FastAPI request) is isolated behind a
-`Protocol` interface so the business logic — returns computation — is a
-pure function on a DataFrame. This makes the math trivially testable and
-keeps the route handler boring.
+dependency (yfinance, the cache, the request) sits behind a `Protocol`, so the
+business logic — `app/services/analytics.py` — is a set of pure functions on a
+DataFrame. The math is trivially testable and the route handler stays boring.
 
-On the frontend, the same idea: a typed API client below a React Query
-hook below presentational components. Components don't know about `fetch`,
-caching, or retries — only about the shape of the data they render.
+On the frontend, the same idea: a typed API client below a React Query hook
+below presentational components. Components don't know about `fetch`, caching,
+or retries — only the shape of the data they render.
 
 ---
 
 ## Key decisions
 
+### The common window
+
+When tickers have different histories (a 2021 IPO vs. an index going back
+decades), **every series is restricted to the dates they all share.** Three
+reasons:
+
+1. Growth curves can be rebased to a common start — every line begins at 1.0
+   on the same date, so the chart compares like with like.
+2. Correlation is only defined on aligned observations.
+3. CAGR / volatility / Sharpe over a window are comparable only if the window
+   is identical across tickers.
+
+The cost: the youngest ticker constrains the window. The effective range and
+its trading-day count are reported back (`window` in the response) and shown in
+the UI, so the trade-off is never hidden. Tickers the upstream has no data for
+are reported in `missing` rather than failing the whole request.
+
+### Growth from prices, not re-compounded returns
+
+The growth curve is `price_t / price_0` over the common window — exact, and it
+starts at precisely 1.0 on day one. (Re-compounding daily returns would drift
+on floating-point error and is needlessly indirect when we already hold prices.)
+Returns for the stats and correlation are derived from the same aligned prices,
+so every number on the page comes from one consistent source.
+
 ### Adjusted close prices, not raw
 
-Returns are computed from split- and dividend-adjusted close prices
-(`yfinance auto_adjust=True`), so they reflect **total return** — what a
-shareholder actually experienced.
+Everything is computed from split- and dividend-adjusted closes
+(`yfinance auto_adjust=True`), so it reflects **total return** — what a
+shareholder actually experienced. Raw closes would inject spurious drops on
+ex-dividend and split days.
 
-Using raw closes would introduce spurious negative returns on
-ex-dividend dates and large artificial drops on split days. For an
-attribution-adjacent tool that would be wrong; for a quant audience
-it would be glaring.
+### Server-computed statistics
 
-### Simple returns, not log returns
+Growth, stats, and correlation are computed on the backend, on the full
+(aligned) daily series. The frontend never re-derives them — guaranteeing the
+chart, table, and heatmap agree, and keeping numbers exact even when the charted
+growth series is downsampled (LTTB, `MAX_CHART_POINTS = 2000`) for long ranges.
 
-The spec asks for "daily % returns." I use simple (arithmetic) returns
-via `pct_change()`. Two reasons:
+### The URL is the state
 
-1. Simple returns are additive **across instruments** at a point in time
-   — which is how portfolio attribution actually works.
-2. Log returns are nicer for time-aggregation, but that's not what's
-   being computed here.
-
-### Server-computed summary statistics
-
-Min/max/mean (and the observation count) per ticker are computed on the
-backend rather than in the frontend. Three reasons:
-
-1. Same numbers appear in the per-card stats and the summary table,
-   guaranteed consistent.
-2. For large date ranges the frontend would be re-deriving stats from
-   thousands of points on every render. Backend does it once.
-3. Since the chart series is downsampled (see "Downsampling long ranges"),
-   the frontend never sees the full series — so it *couldn't* derive accurate
-   min/max/count anyway. Computing on the backend keeps them exact.
+The comparison's entire state (`tickers`, `start`, `end`) lives in the query
+string, mirrored via `history.replaceState`. No accounts, no database, no
+router dependency — yet every comparison is a shareable link, and a bare visit
+falls back to a sensible default. This is the cheapest possible "share" feature:
+it costs zero backend.
 
 ### Dependency injection over module globals
 
-The cache and price fetcher are wired via FastAPI's `Depends()` system,
-backed by `lru_cache`-singletons. Tests override these via
-`app.dependency_overrides` — no monkeypatching, no fragile import paths.
-This is the architecture line that makes the test suite fast and stable.
+The cache and price fetcher are wired via FastAPI's `Depends()` system, backed
+by `lru_cache`-singletons. Tests override them via `app.dependency_overrides` —
+no monkeypatching, no fragile import paths. The `/compare` endpoint gets its own
+cache (its key carries the ticker set), injected the same way.
 
-### React Query for server state, not Redux
+### React Query for server state, Plotly for charts
 
-The app has minimal client state (the date range) and one server resource.
-Reaching for Redux or Zustand would be premature. React Query handles
-request deduplication, caching, retries, and loading/error states for the
-cost of one dependency.
-
-### Plotly for charts
-
-Recharts would be simpler, but Recharts gets sluggish past a few hundred
-points and would force me to write zoom/pan/tooltip handlers by hand.
-Plotly ships all of that out of the box and remains performant on
-multi-year ranges. The cost is bundle size — see "What I'd do next."
-
-### Per-card y-axis scaling
-
-Each ticker's chart auto-scales its y-axis to its own min/max rather than
-sharing a common scale across the grid. This optimizes for reading the
-*shape* of each name's return series independently — the trade-off is that
-magnitudes aren't visually comparable across cards (e.g. a ±1% swing on one
-card can look as dramatic as a ±4% swing on another). The per-card min/max/mean
-stats and the summary table give the absolute numbers, so the scale only
-affects the visual sweep, not the data. A shared y-axis (or a toggle between
-the two modes) would be a reasonable enhancement if cross-ticker volatility
-comparison became a priority.
-
-### Downsampling long ranges
-
-With no range cap, a full-history request is ~11k daily points per ticker
-(~2.4 MB). The backend thins each *charted* series to `MAX_CHART_POINTS`
-(2000) with LTTB (Largest-Triangle-Three-Buckets) — via the `tsdownsample`
-library rather than a hand-rolled implementation — which preserves the line's
-visual shape, including spikes, far better than every-Nth decimation. The
-library returns the indices of the kept points, so date/return pairs survive
-intact. This brings the full-history payload to ~0.7 MB.
-
-Crucially, **summary stats are computed on the full daily series, before
-downsampling**, so min/max/mean — and the observation count shown as "Days" in
-the summary table — stay exact. The only effect is on the rendered line: LTTB
-usually keeps the global extreme points, but isn't guaranteed to, so a chart's
-lowest visible point can be a hair shallower than the reported `min`.
-yfinance can't do this for us — its coarser `interval`s (`1wk`, `1mo`) would
-compute *weekly/monthly* returns, a different metric than the daily returns
-specified, so the thinning happens server-side after the daily math.
-Ranges under ~8 years are below the cap and never touched.
-
-**On the choice of 2000:** it balances zoom detail (enough points that
-drag-zooming still reveals structure) against payload size. It's deliberately
-more than a ~300px card can resolve, so over multi-decade ranges the overview
-reads as a dense band. That's partly overplotting, but mostly the honest
-texture of daily returns over that horizon — no point count smooths it away.
-A cleaner long-range overview would mean lowering the cap (at the cost of zoom
-detail), making the target track the chart's pixel width, or showing a less
-noisy series (rolling volatility, cumulative return) — all deferred as out of
-scope here. `MAX_CHART_POINTS` is a single constant, so the trade-off is one
-line to revisit.
+React Query handles request dedup, caching, retries, and loading/error states
+for one dependency. Plotly ships zoom, pan, hover, legends, and a heatmap out of
+the box and stays performant on multi-year ranges; the cost is bundle size (see
+"What I'd do next").
 
 ### Free MUI X, not paid
 
-The MUI X `DateRangePicker` is behind a commercial license. I use two
-free `DatePicker`s configured to enforce the range constraint via
-`minDate`/`maxDate`. UX is essentially identical for this case.
+The ticker entry is a free MUI Autocomplete; the tables are the free MUI X
+DataGrid (Community). The commercial `DateRangePicker` is avoided in favor of
+two free `DatePicker`s constrained to a valid range.
 
 ---
 
-## Deviations from the spec
+## API contract
 
-**Response shape:** The spec shows the response as
-`{"MSFT": [...], ...}` at the top level. I extended this to:
+### `GET /compare`
+
+Query params: `tickers` (comma-separated, e.g. `AAPL,MSFT,SPY`; 1–10),
+`start`, `end` (ISO dates, inclusive).
 
 ```json
 {
-  "returns": { "MSFT": [...], ... },
-  "stats":   { "MSFT": { "min": -0.05, "max": 0.04, "mean": 0.001, "count": 1253 }, ... }
+  "growth": {
+    "AAPL": [{ "date": "2020-06-08", "value": 1.0 }, { "date": "...", "value": 3.41 }]
+  },
+  "stats": {
+    "AAPL": {
+      "total_return": 2.41, "cagr": 0.28, "annual_vol": 0.31, "sharpe": 0.95,
+      "max_drawdown": -0.31, "best": 0.12, "worst": -0.13, "count": 1258
+    }
+  },
+  "correlation": { "tickers": ["AAPL", "SPY"], "matrix": [[1.0, 0.78], [0.78, 1.0]] },
+  "window": { "start": "2020-06-08", "end": "2025-06-06", "trading_days": 1258 },
+  "missing": []
 }
 ```
 
-(`count` is the number of return observations — trading days — in the full
-series, surfaced as "Days" in the summary table.)
+All values are fractions (`0.28` == +28%). `tickers` are normalized server-side
+(uppercased, deduped). A range with no trading data, or tickers whose histories
+don't overlap, returns a **422** with a clear message; a genuine upstream
+failure returns a **502** (so the UI offers retry only when retrying could help).
 
-This lets the bonus "summary table across all 7 names" come back in the
-same network round-trip and stay atomic with respect to the date range.
-The shape inside `returns` matches the spec exactly.
+### `GET /returns`
 
-**`/api/` prefix in dev:** Vite proxies `/api/*` to the FastAPI backend
-during development so the frontend doesn't hardcode `http://localhost:8000`.
-The backend itself serves `GET /returns` at the root — the prefix is a
-client-side convenience that disappears in any reasonable production
-deployment (reverse proxy, ingress, etc.).
+The original MAG7 daily-returns endpoint, unchanged. See git history / the
+`stats` + `returns` contract in `app/models.py`.
 
-That's it. Everything else matches the spec.
+---
+
+## The metrics, defined
+
+So there's no ambiguity about what the numbers mean:
+
+- **Total return** — `price_last / price_first − 1` over the common window.
+- **CAGR** — `(1 + total_return) ^ (1 / years) − 1`, where `years` is the
+  window's trading-day count ÷ 252 (consistent with the volatility convention).
+- **Annualized volatility** — sample standard deviation of daily returns × √252.
+- **Sharpe** — `mean(daily) / std(daily) × √252`, **risk-free rate = 0**. A
+  fine default for a free comparison tool; documented so it's not mistaken for
+  an excess-return Sharpe.
+- **Max drawdown** — the most negative `price / running-peak − 1` over the
+  window (a non-positive fraction; 0 if the series only rose).
+- **Best / worst day** — the largest single-day gain and loss.
+- **Days** — trading-day observations in the common window.
+
+Degenerate inputs (a single common day, a zero-variance series) yield zeros, not
+`NaN`/`inf`, so the JSON is always valid and the UI never shows garbage.
 
 ---
 
 ## Assumptions
 
-- **Date range is inclusive on both ends.** The user picks Jan 1–Jan 31
-  and gets returns for valid trading days within that range. (yfinance's
-  `end` parameter is exclusive — I adjust internally so the API behaves
-  intuitively.)
-- **The first day in the range has no return.** Returns are
-  `(today / yesterday) - 1`, so day 1 has no prior price. That row is
-  dropped; the response starts at day 2.
-- **Non-trading days are absent, not zero.** Weekends and holidays don't
-  appear in the response. This is yfinance's behavior and is the right
-  one — a "0% return on Saturday" is nonsense.
-- **No artificial range cap — full history is supported.** A request is
-  bounded only by what yfinance has (each ticker from its IPO onward), with
-  long ranges downsampled for the chart (see "Downsampling long ranges") so
-  even full history is a manageable payload. A range that genuinely has no
-  trading data (a weekend, a future range, or dates before any ticker existed)
-  returns a **422** with a clear message — distinct from a real upstream
-  failure (**502**), so the UI doesn't offer a pointless retry.
-- **Partial coverage is fine.** Over a long range, younger tickers simply
-  start later (META from its 2012 IPO, etc.); each chart shows its own
-  available history.
-- **The TTL cache is 5 minutes.** Daily closes don't change intraday for
-  completed trading days, so 5 minutes is a balance between freshness near
-  the current day's close and minimizing yfinance load.
-- **All 7 tickers are always requested together.** The cache key is the
-  date range alone, not (range × ticker). This matches how the tool is
-  used and keeps the cache small.
+- **Date range is inclusive on both ends.** yfinance's `end` is exclusive; the
+  backend adjusts internally so the API behaves intuitively.
+- **Non-trading days are absent, not zero.** Weekends/holidays don't appear.
+- **Comparison window = the overlap.** See "The common window."
+- **No artificial range cap — full history is supported,** bounded only by what
+  yfinance has. Long charted series are downsampled (LTTB) for payload size;
+  the stats are computed on the full aligned series, so they stay exact.
+- **The TTL cache is 5 minutes,** keyed by `(sorted tickers, start, end)` so
+  reordering tickers is a cache hit.
 
 ---
 
@@ -251,116 +253,107 @@ That's it. Everything else matches the spec.
 ```bash
 # Backend
 cd backend
-uv run pytest -v
+uv run pytest -v          # 40 tests
+uv run ruff check . && uv run mypy app
 
 # Frontend
 cd frontend
-npm test
+npm test                  # 21 tests
+npx tsc -b && npx eslint .
 ```
 
-**Backend** (16 tests):
+**Backend** covers the analytics math (common-window alignment, growth rebasing,
+CAGR/vol/Sharpe, max drawdown, correlation, degenerate inputs, downsampling),
+the cache, and both endpoints end-to-end (happy path, ticker normalization/
+validation, missing-ticker reporting, no-overlap → 422, no-data → 422, upstream
+→ 502, cache hits) against a fake price fetcher.
 
-- Pure logic: returns math, stats math, NaN handling, empty inputs,
-  LTTB downsampling (cap, endpoint/order preservation, no-op below threshold)
-- Cache: set/get, TTL expiration
-- API: happy path, cache-hit verification, validation rejection, no-data
-  range → 422, upstream failure → 502 translation
-
-**Frontend** (13 tests):
-
-- Pure utils: percentage formatting, sign behavior
-- Component: TickerCard renders ticker, stats, and empty data
-- End-to-end via MSW: initial empty state, happy-path load, server
-  validation error displayed verbatim, recoverable error with retry
-
-External dependencies (yfinance, the network) are never hit in tests.
-The Plotly chart is mocked to a placeholder because jsdom doesn't
-implement canvas. Every other code path runs for real.
+**Frontend** covers the formatters, the comparison table, the ticker input
+(normalization, validation, cap), the URL-state hook (hydrate + mirror), and the
+app end-to-end via MSW (default load, missing-ticker warning, 422 shown verbatim
+with no retry, 502 with retry-and-recover). The Plotly charts are mocked because
+jsdom has no canvas; every other path runs for real. External dependencies
+(yfinance, the network) are never hit in tests.
 
 ---
 
 ## What I'd do next
 
-Things deliberately out of scope for a take-home but worth naming, in
-roughly the order I'd tackle them in a real codebase:
+In roughly the order I'd tackle them:
 
-1. **Replace `plotly.js` with `plotly.js-basic-dist`** in the frontend
-   bundle. Same chart capabilities for this use case, ~80% smaller.
-2. **Swap the in-memory cache for Redis** behind the same `Cache` protocol.
-   No code changes outside `dependencies.py` — that's why the abstraction
-   exists.
-3. **Wire CI** (GitHub Actions): pytest + ruff + mypy on the backend, vitest
-   - tsc + biome/eslint on the frontend, on every PR.
-4. **Configuration via `pydantic-settings`**, sourcing from environment.
-   Today the constants live in `config.py`; the swap is mechanical.
-5. **Add a `/health` deep-check** that pings yfinance lazily and reports
-   degraded status. The cheap `/health` we have is fine for liveness;
-   readiness wants more.
-6. **Error budgets on the upstream.** Track yfinance failure rates and
-   return cached-stale data with a "data may be outdated" indicator
-   on the UI rather than a hard error.
-7. **Server-Sent Events for live updates** during the trading day. Today
-   the user clicks a date range and gets a snapshot; an internal tool
-   would want a live tape.
-8. **Properly typed yfinance.** I have `ignore_missing_imports` for it
-   in mypy; in a real codebase I'd write a small stub file.
-9. **Storybook for the components**, especially the cards. Designers like it,
-   visual regressions get caught early.
-10. **Auth.** Obvious, but worth naming so it's not "forgotten."
+1. **Portfolio mode.** The natural next layer on this plumbing: weighted
+   portfolios with rebalancing, a blended growth curve, and a benchmark — the
+   "free Portfolio Visualizer" play. The analytics module is already shaped for it.
+2. **Trim the bundle.** Plotly is ~80% of it. Most of the app needs only
+   `plotly.js-basic-dist`; the heatmap is the lone holdout, so lazy-load the
+   correlation view (or its Plotly bundle) behind a dynamic import.
+3. **Rolling views** — rolling correlation and rolling volatility, for when a
+   single window-wide number hides a regime change.
+4. **Redis cache** behind the existing `Cache` protocol (no call-site changes).
+5. **Symbol search/validation** — resolve and disambiguate tickers as the user
+   types, instead of discovering a typo only after the request.
+6. **Configuration via `pydantic-settings`** sourced from the environment.
+7. **CI** (GitHub Actions): pytest + ruff + mypy; vitest + tsc + eslint.
+8. **Risk-free input** for an excess-return Sharpe, for users who want it.
 
 ---
 
 ## Project layout
 
 ```
-acadian-mag7/
+.
 ├── README.md
 ├── backend/
 │   ├── pyproject.toml
 │   ├── app/
 │   │   ├── main.py            # FastAPI app, CORS, router mounting
-│   │   ├── config.py          # Constants
-│   │   ├── models.py          # Pydantic models
-│   │   ├── dependencies.py    # DI providers
+│   │   ├── config.py          # Constants (tickers, cache, caps, 252)
+│   │   ├── models.py          # Pydantic models / wire contracts
+│   │   ├── dependencies.py    # DI providers (per-endpoint caches, fetcher)
 │   │   ├── api/
-│   │   │   └── returns.py     # Route handler (thin)
+│   │   │   ├── returns.py     # GET /returns (original MAG7 daily returns)
+│   │   │   └── compare.py     # GET /compare (the comparison engine)
 │   │   └── services/
 │   │       ├── cache.py       # TTL cache + protocol
 │   │       ├── prices.py      # yfinance wrapper + protocol
-│   │       └── returns.py     # Pure returns math + LTTB downsampling
+│   │       ├── returns.py     # Daily-returns math + LTTB downsampling
+│   │       └── analytics.py   # Growth, risk/return stats, correlation
 │   └── tests/
 │       ├── conftest.py
 │       ├── test_returns_logic.py
+│       ├── test_analytics.py
 │       ├── test_cache.py
-│       └── test_api.py
+│       ├── test_api.py
+│       └── test_compare_api.py
 └── frontend/
     ├── package.json
-    ├── vite.config.ts
-    ├── tsconfig.json
     ├── src/
     │   ├── main.tsx
     │   ├── App.tsx
     │   ├── theme.ts
     │   ├── types.ts
-    │   ├── api/returns.ts
-    │   ├── hooks/useReturns.ts
-    │   ├── utils/stats.ts
+    │   ├── api/
+    │   │   ├── client.ts       # ApiError + shared fetch/parse helper
+    │   │   └── compare.ts      # GET /compare client
+    │   ├── hooks/
+    │   │   ├── useComparison.ts # React Query hook
+    │   │   └── useUrlState.ts   # URL <-> state binding (shareable links)
+    │   ├── utils/
+    │   │   ├── stats.ts        # Formatters
+    │   │   └── palette.ts      # Per-series colors
     │   └── components/
+    │       ├── TickerInput.tsx
     │       ├── DateRangePicker.tsx
-    │       ├── ReturnsGrid.tsx
-    │       ├── TickerCard.tsx
-    │       ├── SummaryTable.tsx
+    │       ├── GrowthChart.tsx
+    │       ├── ComparisonTable.tsx
+    │       ├── CorrelationHeatmap.tsx
     │       ├── LoadingState.tsx
     │       └── ErrorState.tsx
     └── tests/
         ├── setup.ts
         ├── test-utils.tsx
-        ├── mocks/
-        │   ├── server.ts
-        │   └── handlers.ts
-        ├── components/
-        │   ├── TickerCard.test.tsx
-        │   └── App.test.tsx
-        └── utils/
-            └── stats.test.ts
+        ├── mocks/{server,handlers}.ts
+        ├── components/{App,ComparisonTable,TickerInput}.test.tsx
+        ├── hooks/useUrlState.test.ts
+        └── utils/stats.test.ts
 ```

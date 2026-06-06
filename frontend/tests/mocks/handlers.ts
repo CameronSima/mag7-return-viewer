@@ -1,37 +1,56 @@
 import { http, HttpResponse } from "msw";
-import type { ReturnsResponse } from "@/types";
+import type { CompareResponse } from "@/types";
 
 /**
- * Default happy-path response. Tests can override per-test via
- * server.use() for specific scenarios.
+ * Default happy-path /compare response. Tests can override per-test via
+ * server.use() for specific scenarios (errors, missing tickers, …).
  */
-export const sampleResponse: ReturnsResponse = {
-  returns: {
-    MSFT: [
-      { date: "2024-01-02", return: 0.01 },
-      { date: "2024-01-03", return: 0.005 },
-    ],
+export const sampleCompareResponse: CompareResponse = {
+  growth: {
     AAPL: [
-      { date: "2024-01-02", return: -0.005 },
-      { date: "2024-01-03", return: 0.002 },
+      { date: "2024-01-02", value: 1.0 },
+      { date: "2024-01-03", value: 1.05 },
+      { date: "2024-01-04", value: 1.12 },
     ],
-    GOOGL: [{ date: "2024-01-02", return: 0.003 }],
-    AMZN: [{ date: "2024-01-02", return: -0.001 }],
-    NVDA: [{ date: "2024-01-02", return: 0.02 }],
-    META: [{ date: "2024-01-02", return: 0.008 }],
-    TSLA: [{ date: "2024-01-02", return: -0.015 }],
+    MSFT: [
+      { date: "2024-01-02", value: 1.0 },
+      { date: "2024-01-03", value: 0.98 },
+      { date: "2024-01-04", value: 1.03 },
+    ],
   },
   stats: {
-    MSFT: { min: 0.005, max: 0.01, mean: 0.0075, count: 2 },
-    AAPL: { min: -0.005, max: 0.002, mean: -0.0015, count: 2 },
-    GOOGL: { min: 0.003, max: 0.003, mean: 0.003, count: 1 },
-    AMZN: { min: -0.001, max: -0.001, mean: -0.001, count: 1 },
-    NVDA: { min: 0.02, max: 0.02, mean: 0.02, count: 1 },
-    META: { min: 0.008, max: 0.008, mean: 0.008, count: 1 },
-    TSLA: { min: -0.015, max: -0.015, mean: -0.015, count: 1 },
+    AAPL: {
+      total_return: 0.12,
+      cagr: 0.18,
+      annual_vol: 0.24,
+      sharpe: 0.9,
+      max_drawdown: -0.08,
+      best: 0.07,
+      worst: -0.05,
+      count: 2,
+    },
+    MSFT: {
+      total_return: 0.03,
+      cagr: 0.05,
+      annual_vol: 0.2,
+      sharpe: 0.4,
+      max_drawdown: -0.02,
+      best: 0.05,
+      worst: -0.02,
+      count: 2,
+    },
   },
+  correlation: {
+    tickers: ["AAPL", "MSFT"],
+    matrix: [
+      [1.0, 0.6],
+      [0.6, 1.0],
+    ],
+  },
+  window: { start: "2024-01-02", end: "2024-01-04", trading_days: 3 },
+  missing: [],
 };
 
 export const handlers = [
-  http.get("/api/returns", () => HttpResponse.json(sampleResponse)),
+  http.get("/api/compare", () => HttpResponse.json(sampleCompareResponse)),
 ];

@@ -6,7 +6,7 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import App from "./App";
 import { theme } from "./theme";
-import { ApiError } from "./api/returns";
+import { ApiError } from "./api/client";
 
 const queryClient = new QueryClient({
   defaultOptions: {

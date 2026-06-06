@@ -15,7 +15,7 @@ export function ErrorState({ error, onRetry }: ErrorStateProps) {
   return (
     <Stack spacing={2}>
       <Alert severity="error" variant="outlined">
-        <AlertTitle>Unable to load returns</AlertTitle>
+        <AlertTitle>Unable to load data</AlertTitle>
         {error.message}
       </Alert>
       {onRetry && (
