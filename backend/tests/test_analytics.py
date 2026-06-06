@@ -10,6 +10,7 @@ from app.services.analytics import (
     compute_growth,
     describe_window,
     restrict_to_common_window,
+    simulate_portfolio_value,
 )
 
 
@@ -184,3 +185,52 @@ def test_describe_window_empty() -> None:
         "end": None,
         "trading_days": 0,
     }
+
+
+def test_portfolio_single_holding_equals_its_growth() -> None:
+    """A one-holding portfolio is just that holding's growth, starting at 1.0."""
+    prices = _frame(
+        {"AAA": [100.0, 110.0, 121.0]},
+        ["2024-01-02", "2024-01-03", "2024-01-04"],
+    )
+    value = simulate_portfolio_value(prices, {"AAA": 1.0}, "none")
+    assert value.tolist() == pytest.approx([1.0, 1.1, 1.21])
+
+
+def test_portfolio_buy_and_hold_drifts() -> None:
+    """Without rebalancing, weights drift: a 50/50 of a +10%/day and a -10%/day
+    name starts at 1.0, stays 1.0 after one offsetting day, then drifts up."""
+    prices = _frame(
+        {"AAA": [100.0, 110.0, 121.0], "BBB": [100.0, 90.0, 81.0]},
+        ["2024-01-02", "2024-01-03", "2024-01-04"],
+    )
+    value = simulate_portfolio_value(prices, {"AAA": 0.5, "BBB": 0.5}, "none")
+    # day1: 0.5*1.1 + 0.5*0.9 = 1.0 ; day2: 0.55*1.1 + 0.45*0.9 = 1.01
+    assert value.tolist() == pytest.approx([1.0, 1.0, 1.01])
+
+
+def test_portfolio_rebalances_on_period_boundary() -> None:
+    """Monthly rebalancing resets to target weights at the first day of the new
+    month, producing a different path than buy-and-hold."""
+    dates = ["2024-01-30", "2024-01-31", "2024-02-01", "2024-02-02"]
+    prices = _frame(
+        {
+            "AAA": [100.0, 110.0, 121.0, 133.1],  # +10%/day
+            "BBB": [100.0, 90.0, 81.0, 72.9],  # -10%/day
+        },
+        dates,
+    )
+    weights = {"AAA": 0.5, "BBB": 0.5}
+
+    rebalanced = simulate_portfolio_value(prices, weights, "monthly")
+    buyhold = simulate_portfolio_value(prices, weights, "none")
+
+    # Through 2024-02-01 both equal 1.01; the rebalance there resets to 50/50,
+    # so the final day differs: rebalanced 1.01 vs buy-and-hold ~1.03.
+    assert rebalanced.tolist() == pytest.approx([1.0, 1.0, 1.01, 1.01])
+    assert buyhold.iloc[-1] == pytest.approx(1.03)
+    assert rebalanced.iloc[-1] != pytest.approx(buyhold.iloc[-1])
+
+
+def test_portfolio_empty_frame() -> None:
+    assert simulate_portfolio_value(pd.DataFrame(), {}, "none").empty

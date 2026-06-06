@@ -140,6 +140,56 @@ def compute_comparison_stats(
     return stats
 
 
+def simulate_portfolio_value(
+    prices: pd.DataFrame,
+    weights: dict[str, float],
+    rebalance: str,
+) -> pd.Series:
+    """Backtest a weighted portfolio's value over an aligned price frame.
+
+    Returns a value Series indexed like ``prices``, starting at exactly 1.0 on
+    the first date (so it composes with ``compute_growth`` like a price series).
+    Each holding starts at its target weight and then drifts with its own daily
+    return; on a rebalance boundary the holdings are reset to target weights
+    against the current total — modeling a periodic rebalance back to the
+    policy mix. ``rebalance="none"`` is buy-and-hold (weights drift forever).
+    """
+    if prices.empty:
+        return pd.Series(dtype=float)
+
+    tickers = list(prices.columns)
+    target = np.array([weights[str(t)] for t in tickers], dtype=float)
+    # Daily simple returns; the first row is NaN (no prior price) -> 0 so day one
+    # is the 1.0 baseline. Holdings are NaN-free (aligned), so fillna only hits row 0.
+    returns = prices.pct_change(fill_method=None).fillna(0.0).to_numpy()
+    rebal = _rebalance_mask(prices.index, rebalance)
+
+    n = len(prices)
+    values = np.empty(n, dtype=float)
+    holding = target.copy()  # per-holding value; portfolio total starts at 1.0
+    values[0] = float(holding.sum())
+    for i in range(1, n):
+        holding = holding * (1.0 + returns[i])
+        total = float(holding.sum())
+        values[i] = total
+        if rebal[i]:
+            holding = target * total
+    return pd.Series(values, index=prices.index)
+
+
+def _rebalance_mask(index: pd.Index, rebalance: str) -> np.ndarray:
+    """Boolean mask marking the first trading day of each new period as a
+    rebalance day (never the first day — it's already at target weights)."""
+    n = len(index)
+    if rebalance == "none" or n == 0:
+        return np.zeros(n, dtype=bool)
+    freq = {"monthly": "M", "quarterly": "Q", "annually": "Y"}[rebalance]
+    periods = pd.DatetimeIndex(index).to_period(freq)
+    mask = np.zeros(n, dtype=bool)
+    mask[1:] = periods[1:] != periods[:-1]
+    return mask
+
+
 def compute_correlation(aligned_prices: pd.DataFrame) -> CorrelationDict:
     """Pairwise daily-return correlation across the common window."""
     if aligned_prices.empty:

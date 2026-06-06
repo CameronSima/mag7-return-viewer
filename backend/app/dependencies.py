@@ -27,6 +27,13 @@ def get_compare_cache() -> Cache[tuple[str, str, str], dict[str, object]]:
 
 
 @lru_cache(maxsize=1)
+def get_portfolio_cache() -> Cache[str, dict[str, object]]:
+    """Singleton cache for the /portfolio endpoint, keyed by a canonical string
+    of the holdings, weights, rebalance frequency, benchmark, and date range."""
+    return InMemoryTTLCache()
+
+
+@lru_cache(maxsize=1)
 def get_price_fetcher() -> PriceFetcher:
     """Singleton price fetcher. Stateless, but no reason to construct repeatedly."""
     return YFinancePriceFetcher()

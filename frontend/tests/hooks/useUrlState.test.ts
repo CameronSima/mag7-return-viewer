@@ -1,9 +1,13 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import { useUrlState } from "@/hooks/useUrlState";
+import { useUrlState, type AppState } from "@/hooks/useUrlState";
 
-const DEFAULTS = {
+const DEFAULTS: AppState = {
+  mode: "compare",
   tickers: ["AAPL", "MSFT"],
+  holdings: [{ ticker: "AAPL", weight: 0.5 }],
+  rebalance: "none",
+  benchmark: "SPY",
   start: "2020-01-01",
   end: "2024-01-01",
 };
@@ -13,12 +17,12 @@ beforeEach(() => {
 });
 
 describe("useUrlState", () => {
-  it("falls back to defaults when the URL has no tickers", () => {
+  it("falls back to defaults when the URL carries no state", () => {
     const { result } = renderHook(() => useUrlState(DEFAULTS));
     expect(result.current[0]).toEqual(DEFAULTS);
   });
 
-  it("hydrates from the query string when present", () => {
+  it("hydrates compare state from the query string", () => {
     window.history.replaceState(
       null,
       "",
@@ -26,21 +30,47 @@ describe("useUrlState", () => {
     );
     const { result } = renderHook(() => useUrlState(DEFAULTS));
 
-    expect(result.current[0]).toEqual({
-      tickers: ["NVDA", "GOOGL"], // uppercased
-      start: "2021-06-01",
-      end: "2023-06-01",
-    });
+    expect(result.current[0].mode).toBe("compare");
+    expect(result.current[0].tickers).toEqual(["NVDA", "GOOGL"]); // uppercased
+    expect(result.current[0].start).toBe("2021-06-01");
   });
 
-  it("mirrors state changes into the URL", () => {
+  it("hydrates portfolio state (mode, holdings, rebalance, benchmark)", () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/?mode=portfolio&holdings=NVDA:0.6,GOOGL:0.4&rebalance=monthly&benchmark=qqq",
+    );
+    const { result } = renderHook(() => useUrlState(DEFAULTS));
+
+    expect(result.current[0].mode).toBe("portfolio");
+    expect(result.current[0].holdings).toEqual([
+      { ticker: "NVDA", weight: 0.6 },
+      { ticker: "GOOGL", weight: 0.4 },
+    ]);
+    expect(result.current[0].rebalance).toBe("monthly");
+    expect(result.current[0].benchmark).toBe("QQQ"); // uppercased
+  });
+
+  it("mirrors portfolio state changes into the URL", () => {
     const { result } = renderHook(() => useUrlState(DEFAULTS));
 
     act(() => {
-      result.current[1]({ tickers: ["TSLA"], start: null, end: null });
+      result.current[1]({
+        ...DEFAULTS,
+        mode: "portfolio",
+        holdings: [{ ticker: "TSLA", weight: 1 }],
+        rebalance: "quarterly",
+        benchmark: null,
+        start: null,
+        end: null,
+      });
     });
 
-    expect(window.location.search).toBe("?tickers=TSLA");
-    expect(result.current[0].tickers).toEqual(["TSLA"]);
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("mode")).toBe("portfolio");
+    expect(params.get("holdings")).toBe("TSLA:1");
+    expect(params.get("rebalance")).toBe("quarterly");
+    expect(params.get("benchmark")).toBeNull();
   });
 });

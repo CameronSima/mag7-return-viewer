@@ -91,3 +91,44 @@ export interface CompareResponse {
   /** Requested tickers the upstream had no data for (e.g. a typo). */
   missing: string[];
 }
+
+// --- /portfolio contract (mirrors backend app/models.py) --------------------
+
+/** How often the portfolio is rebalanced back to its target weights. */
+export type RebalanceFreq = "none" | "monthly" | "quarterly" | "annually";
+
+export const REBALANCE_OPTIONS: { value: RebalanceFreq; label: string }[] = [
+  { value: "none", label: "Buy & hold" },
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "annually", label: "Annually" },
+];
+
+/** A target holding the user defines: a ticker and its (pre-normalized) weight. */
+export interface HoldingInput {
+  ticker: string;
+  weight: number;
+}
+
+/** A portfolio constituent in the response: normalized weight + total return. */
+export interface Holding {
+  ticker: string;
+  weight: number;
+  total_return: number;
+}
+
+/** Complete response from GET /portfolio. `growth`/`stats` are keyed by
+ *  "Portfolio" and (if given) the benchmark symbol, so the same chart/table
+ *  components render them. */
+export interface PortfolioResponse {
+  growth: Record<string, GrowthPoint[]>;
+  stats: Record<string, CompareStats>;
+  correlation: CorrelationMatrix;
+  window: CompareWindow;
+  holdings: Holding[];
+  benchmark: string | null;
+  missing: string[];
+}
+
+/** The series key the backend uses for the simulated portfolio. */
+export const PORTFOLIO_KEY = "Portfolio";

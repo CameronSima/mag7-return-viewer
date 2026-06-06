@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import type { CompareResponse } from "@/types";
+import type { CompareResponse, PortfolioResponse } from "@/types";
 
 /**
  * Default happy-path /compare response. Tests can override per-test via
@@ -51,6 +51,59 @@ export const sampleCompareResponse: CompareResponse = {
   missing: [],
 };
 
+export const samplePortfolioResponse: PortfolioResponse = {
+  growth: {
+    Portfolio: [
+      { date: "2024-01-02", value: 1.0 },
+      { date: "2024-01-03", value: 1.03 },
+      { date: "2024-01-04", value: 1.08 },
+    ],
+    SPY: [
+      { date: "2024-01-02", value: 1.0 },
+      { date: "2024-01-03", value: 1.01 },
+      { date: "2024-01-04", value: 1.02 },
+    ],
+  },
+  stats: {
+    Portfolio: {
+      total_return: 0.08,
+      cagr: 0.12,
+      annual_vol: 0.22,
+      sharpe: 0.7,
+      max_drawdown: -0.05,
+      best: 0.04,
+      worst: -0.03,
+      count: 2,
+    },
+    SPY: {
+      total_return: 0.02,
+      cagr: 0.04,
+      annual_vol: 0.15,
+      sharpe: 0.3,
+      max_drawdown: -0.02,
+      best: 0.02,
+      worst: -0.01,
+      count: 2,
+    },
+  },
+  correlation: {
+    tickers: ["Portfolio", "SPY"],
+    matrix: [
+      [1.0, 0.85],
+      [0.85, 1.0],
+    ],
+  },
+  window: { start: "2024-01-02", end: "2024-01-04", trading_days: 3 },
+  holdings: [
+    { ticker: "AAPL", weight: 0.4, total_return: 0.1 },
+    { ticker: "MSFT", weight: 0.3, total_return: 0.05 },
+    { ticker: "NVDA", weight: 0.3, total_return: 0.2 },
+  ],
+  benchmark: "SPY",
+  missing: [],
+};
+
 export const handlers = [
   http.get("/api/compare", () => HttpResponse.json(sampleCompareResponse)),
+  http.get("/api/portfolio", () => HttpResponse.json(samplePortfolioResponse)),
 ];

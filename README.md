@@ -1,19 +1,26 @@
 # Stock Comparison
 
-A free, no-sign-up tool for comparing the long-run performance of any stocks or
-ETFs — **growth, risk, and correlation, side by side.** Type some tickers, pick
-a range, and get a normalized growth chart, a sortable risk/return table, and a
-correlation heatmap. Every view is encoded in the URL, so any comparison is a
+A free, no-sign-up tool for comparing stocks/ETFs and backtesting portfolios —
+**growth, risk, and correlation, side by side.** Two modes:
+
+- **Compare** — type some tickers and get a normalized growth chart, a sortable
+  risk/return table, and a correlation heatmap.
+- **Portfolio** — define weighted holdings, choose a rebalance frequency and a
+  benchmark, and backtest the blended portfolio against it.
+
+Every view is encoded in the URL, so any comparison or portfolio is a
 copy-pasteable link.
 
 **Backend:** FastAPI + yfinance + pandas, with a TTL cache and dependency
-injection. **Frontend:** React 19 + TypeScript + MUI + MUI X + Plotly, with
-React Query for server state and the URL as the source of truth for shared state.
+injection. **Frontend:** React 19 + TypeScript + Tailwind + shadcn/ui + Plotly,
+with React Query for server state and the URL as the source of truth for shared
+state. The UI follows Linear's design language — a near-black canvas, hairline
+borders, an indigo accent, crisp typography.
 
-> It started life as a 7-stock daily-returns viewer (the MAG7); the
-> comparison engine generalizes it to arbitrary tickers. The original
-> `GET /returns` endpoint and its per-ticker daily-return contract are still
-> present and tested — the comparison engine is additive.
+> It started life as a 7-stock daily-returns viewer (the MAG7), grew a
+> comparison engine for arbitrary tickers, then a portfolio backtester. The
+> original `GET /returns` endpoint and contract are still present and tested —
+> everything since has been additive.
 
 ---
 
@@ -62,7 +69,7 @@ change the range, hit **Share link**. API docs are auto-generated at
 
 ## What it does
 
-Enter up to 10 tickers (stocks or ETFs) and a date range. The app shows:
+**Compare mode** — enter up to 10 tickers (stocks or ETFs) and a date range:
 
 - **Growth of $1** — every ticker rebased to 1.0 at the common start date and
   overlaid on one shared axis, so magnitudes are directly comparable. Linear/log
@@ -74,6 +81,19 @@ Enter up to 10 tickers (stocks or ETFs) and a date range. The app shows:
 
 Plus quick presets (MAG7, MAG7 vs. S&P 500, the index ETFs), a warning when a
 typo'd symbol has no data, and the shareable URL.
+
+**Portfolio mode** — define weighted holdings, pick a rebalance frequency
+(buy & hold, monthly, quarterly, annually) and an optional benchmark:
+
+- The blended **portfolio's value is backtested** day by day — holdings drift
+  between rebalances and snap back to target weights on each rebalance boundary
+  — then plotted as growth of $1 against the benchmark.
+- The same **risk/return table** compares the portfolio to the benchmark, and a
+  **holdings breakdown** shows each name's weight, total return, and weighted
+  contribution.
+
+Weights are entered raw and shown normalized to 100%; an "Equal weight" button
+balances them. A dropped (no-data) holding renormalizes the rest.
 
 ---
 
@@ -133,6 +153,20 @@ on floating-point error and is needlessly indirect when we already hold prices.)
 Returns for the stats and correlation are derived from the same aligned prices,
 so every number on the page comes from one consistent source.
 
+### The portfolio value is "just a price"
+
+The portfolio backtest produces a daily **value series starting at 1.0**, then
+feeds it into the *same* growth/stats/correlation functions as everything else —
+a portfolio behaves exactly like a synthetic price. So the chart, risk table,
+and correlation matrix needed zero new rendering code; portfolio mode is a new
+endpoint plus one simulation function (`simulate_portfolio_value`).
+
+The simulation tracks per-holding value: each holding drifts with its own daily
+return, and on a rebalance boundary (first trading day of each month/quarter/year)
+the holdings reset to target weights against the current total. `none` is
+buy-and-hold (weights drift forever). Weights are merged across duplicate tickers,
+normalized to sum to 1, and renormalized again if a holding has no data.
+
 ### Adjusted close prices, not raw
 
 Everything is computed from split- and dividend-adjusted closes
@@ -149,18 +183,18 @@ growth series is downsampled (LTTB, `MAX_CHART_POINTS = 2000`) for long ranges.
 
 ### The URL is the state
 
-The comparison's entire state (`tickers`, `start`, `end`) lives in the query
-string, mirrored via `history.replaceState`. No accounts, no database, no
-router dependency — yet every comparison is a shareable link, and a bare visit
-falls back to a sensible default. This is the cheapest possible "share" feature:
-it costs zero backend.
+The entire app state — mode, tickers/holdings, weights, rebalance, benchmark, and
+range — lives in the query string, mirrored via `history.replaceState`. No
+accounts, no database, no router dependency — yet every comparison *and* every
+portfolio is a shareable link, and a bare visit falls back to a sensible default.
+This is the cheapest possible "share" feature: it costs zero backend.
 
 ### Dependency injection over module globals
 
 The cache and price fetcher are wired via FastAPI's `Depends()` system, backed
 by `lru_cache`-singletons. Tests override them via `app.dependency_overrides` —
-no monkeypatching, no fragile import paths. The `/compare` endpoint gets its own
-cache (its key carries the ticker set), injected the same way.
+no monkeypatching, no fragile import paths. Each endpoint gets its own cache
+(keyed by its full input), injected the same way.
 
 ### React Query for server state, Plotly for charts
 
@@ -169,11 +203,15 @@ for one dependency. Plotly ships zoom, pan, hover, legends, and a heatmap out of
 the box and stays performant on multi-year ranges; the cost is bundle size (see
 "What I'd do next").
 
-### Free MUI X, not paid
+### shadcn/ui + Tailwind, Linear's design language
 
-The ticker entry is a free MUI Autocomplete; the tables are the free MUI X
-DataGrid (Community). The commercial `DateRangePicker` is avoided in favor of
-two free `DatePicker`s constrained to a valid range.
+The UI is built on hand-authored [shadcn/ui](https://ui.shadcn.com) primitives
+(Radix + Tailwind v4) — owned, dependency-light component code rather than a
+black-box library — styled to mimic Linear: a near-black cool canvas with a faint
+indigo glow, hairline borders, the `#5e6ad2` accent, and crisp headings with tight
+tracking. The data-heavy widgets are headless and free: the sortable tables use
+**TanStack Table**, the date range uses **react-day-picker**, and the rebalance
+picker uses a **Radix Select**. No component library license, no paywalled pieces.
 
 ---
 
@@ -205,6 +243,34 @@ All values are fractions (`0.28` == +28%). `tickers` are normalized server-side
 (uppercased, deduped). A range with no trading data, or tickers whose histories
 don't overlap, returns a **422** with a clear message; a genuine upstream
 failure returns a **502** (so the UI offers retry only when retrying could help).
+
+### `GET /portfolio`
+
+Query params: `tickers` and `weights` (parallel comma-separated lists; weights
+optional → equal-weight), `rebalance` (`none`|`monthly`|`quarterly`|`annually`),
+`benchmark` (optional symbol), `start`, `end`.
+
+```json
+{
+  "growth": {
+    "Portfolio": [{ "date": "2020-06-08", "value": 1.0 }, { "date": "...", "value": 2.6 }],
+    "SPY":       [{ "date": "2020-06-08", "value": 1.0 }, { "date": "...", "value": 1.9 }]
+  },
+  "stats": {
+    "Portfolio": { "total_return": 1.6, "cagr": 0.21, "annual_vol": 0.24, "sharpe": 0.9, "max_drawdown": -0.28, "best": 0.09, "worst": -0.1, "count": 1258 },
+    "SPY":       { "total_return": 0.9, "cagr": 0.14, "annual_vol": 0.18, "sharpe": 0.8, "max_drawdown": -0.25, "best": 0.09, "worst": -0.11, "count": 1258 }
+  },
+  "correlation": { "tickers": ["Portfolio", "SPY"], "matrix": [[1.0, 0.93], [0.93, 1.0]] },
+  "window": { "start": "2020-06-08", "end": "2025-06-06", "trading_days": 1258 },
+  "holdings": [{ "ticker": "AAPL", "weight": 0.4, "total_return": 2.41 }],
+  "benchmark": "SPY",
+  "missing": []
+}
+```
+
+`growth`/`stats`/`correlation` are keyed by `"Portfolio"` and the benchmark, so
+the same chart/table components render them. Weights are merged across duplicate
+tickers and normalized to sum to 1.
 
 ### `GET /returns`
 
@@ -243,8 +309,9 @@ Degenerate inputs (a single common day, a zero-variance series) yield zeros, not
 - **No artificial range cap — full history is supported,** bounded only by what
   yfinance has. Long charted series are downsampled (LTTB) for payload size;
   the stats are computed on the full aligned series, so they stay exact.
-- **The TTL cache is 5 minutes,** keyed by `(sorted tickers, start, end)` so
-  reordering tickers is a cache hit.
+- **The TTL cache is 5 minutes.** Keys carry the full input — for `/compare`
+  `(sorted tickers, start, end)`; for `/portfolio` the sorted holdings+weights,
+  rebalance, benchmark, and range — so reorderings are cache hits.
 
 ---
 
@@ -253,27 +320,29 @@ Degenerate inputs (a single common day, a zero-variance series) yield zeros, not
 ```bash
 # Backend
 cd backend
-uv run pytest -v          # 40 tests
+uv run pytest -v          # 54 tests
 uv run ruff check . && uv run mypy app
 
 # Frontend
 cd frontend
-npm test                  # 21 tests
+npm test                  # 27 tests
 npx tsc -b && npx eslint .
 ```
 
 **Backend** covers the analytics math (common-window alignment, growth rebasing,
-CAGR/vol/Sharpe, max drawdown, correlation, degenerate inputs, downsampling),
-the cache, and both endpoints end-to-end (happy path, ticker normalization/
-validation, missing-ticker reporting, no-overlap → 422, no-data → 422, upstream
-→ 502, cache hits) against a fake price fetcher.
+CAGR/vol/Sharpe, max drawdown, correlation, degenerate inputs, downsampling, and
+the portfolio simulation incl. rebalancing vs. buy-and-hold), the cache, and all
+endpoints end-to-end (happy path, ticker/weight normalization & validation,
+missing-holding renormalization, no-overlap → 422, no-data → 422, upstream → 502,
+cache hits) against a fake price fetcher.
 
-**Frontend** covers the formatters, the comparison table, the ticker input
-(normalization, validation, cap), the URL-state hook (hydrate + mirror), and the
-app end-to-end via MSW (default load, missing-ticker warning, 422 shown verbatim
-with no retry, 502 with retry-and-recover). The Plotly charts are mocked because
-jsdom has no canvas; every other path runs for real. External dependencies
-(yfinance, the network) are never hit in tests.
+**Frontend** covers the formatters, the comparison table, the ticker input and
+portfolio builder (normalization, validation, cap, weights, equalize, remove),
+the URL-state hook (hydrate + mirror for both modes), and the app end-to-end via
+MSW (compare default load, portfolio-mode backtest, missing-ticker warning, 422
+shown verbatim with no retry, 502 with retry-and-recover). The Plotly charts are
+mocked because jsdom has no canvas; every other path runs for real. External
+dependencies (yfinance, the network) are never hit in tests.
 
 ---
 
@@ -281,12 +350,12 @@ jsdom has no canvas; every other path runs for real. External dependencies
 
 In roughly the order I'd tackle them:
 
-1. **Portfolio mode.** The natural next layer on this plumbing: weighted
-   portfolios with rebalancing, a blended growth curve, and a benchmark — the
-   "free Portfolio Visualizer" play. The analytics module is already shaped for it.
-2. **Trim the bundle.** Plotly is ~80% of it. Most of the app needs only
+1. **Trim the bundle.** Plotly is ~80% of it. Most of the app needs only
    `plotly.js-basic-dist`; the heatmap is the lone holdout, so lazy-load the
    correlation view (or its Plotly bundle) behind a dynamic import.
+2. **Richer portfolio analytics** — contribution-to-risk, a benchmark-relative
+   tracking error / information ratio, and a periodic-return (calendar-year)
+   table alongside the growth curve.
 3. **Rolling views** — rolling correlation and rolling volatility, for when a
    single window-wide number hides a regime change.
 4. **Redis cache** behind the existing `Cache` protocol (no call-site changes).
@@ -312,48 +381,43 @@ In roughly the order I'd tackle them:
 │   │   ├── dependencies.py    # DI providers (per-endpoint caches, fetcher)
 │   │   ├── api/
 │   │   │   ├── returns.py     # GET /returns (original MAG7 daily returns)
-│   │   │   └── compare.py     # GET /compare (the comparison engine)
+│   │   │   ├── compare.py     # GET /compare (the comparison engine)
+│   │   │   └── portfolio.py   # GET /portfolio (the portfolio backtester)
 │   │   └── services/
 │   │       ├── cache.py       # TTL cache + protocol
 │   │       ├── prices.py      # yfinance wrapper + protocol
 │   │       ├── returns.py     # Daily-returns math + LTTB downsampling
-│   │       └── analytics.py   # Growth, risk/return stats, correlation
+│   │       └── analytics.py   # Growth, stats, correlation, portfolio sim
 │   └── tests/
 │       ├── conftest.py
 │       ├── test_returns_logic.py
 │       ├── test_analytics.py
 │       ├── test_cache.py
 │       ├── test_api.py
-│       └── test_compare_api.py
+│       ├── test_compare_api.py
+│       └── test_portfolio_api.py
 └── frontend/
     ├── package.json
     ├── src/
     │   ├── main.tsx
-    │   ├── App.tsx
-    │   ├── theme.ts
+    │   ├── App.tsx             # mode toggle + compare/portfolio routing
+    │   ├── index.css           # Tailwind + Linear design tokens
     │   ├── types.ts
-    │   ├── api/
-    │   │   ├── client.ts       # ApiError + shared fetch/parse helper
-    │   │   └── compare.ts      # GET /compare client
-    │   ├── hooks/
-    │   │   ├── useComparison.ts # React Query hook
-    │   │   └── useUrlState.ts   # URL <-> state binding (shareable links)
-    │   ├── utils/
-    │   │   ├── stats.ts        # Formatters
-    │   │   └── palette.ts      # Per-series colors
+    │   ├── lib/utils.ts        # cn() class-merge helper
+    │   ├── api/                # client.ts, compare.ts, portfolio.ts
+    │   ├── hooks/              # useComparison, usePortfolio, useUrlState
+    │   ├── utils/              # stats, palette, chartTheme (Plotly colors)
     │   └── components/
-    │       ├── TickerInput.tsx
-    │       ├── DateRangePicker.tsx
-    │       ├── GrowthChart.tsx
-    │       ├── ComparisonTable.tsx
-    │       ├── CorrelationHeatmap.tsx
-    │       ├── LoadingState.tsx
-    │       └── ErrorState.tsx
+    │       ├── ui/             # shadcn primitives (button, card, table, …)
+    │       ├── TickerInput.tsx        PortfolioBuilder.tsx
+    │       ├── DateRangePicker.tsx    GrowthChart.tsx
+    │       ├── ComparisonTable.tsx    HoldingsTable.tsx
+    │       ├── CorrelationHeatmap.tsx WindowCaption.tsx
+    │       ├── CompareResults.tsx     PortfolioResults.tsx
+    │       └── LoadingState.tsx       ErrorState.tsx
     └── tests/
-        ├── setup.ts
-        ├── test-utils.tsx
-        ├── mocks/{server,handlers}.ts
-        ├── components/{App,ComparisonTable,TickerInput}.test.tsx
+        ├── setup.ts  test-utils.tsx  mocks/{server,handlers}.ts
+        ├── components/{App,ComparisonTable,TickerInput,PortfolioBuilder}.test.tsx
         ├── hooks/useUrlState.test.ts
         └── utils/stats.test.ts
 ```

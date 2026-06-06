@@ -54,6 +54,19 @@ describe("App", () => {
     });
   });
 
+  it("switches to portfolio mode and backtests the default holdings", async () => {
+    renderWithProviders(<App />);
+
+    // The mode toggle's "Portfolio" is the only such text before results load.
+    await userEvent.setup().click(screen.getByText("Portfolio"));
+
+    await waitFor(() => {
+      // HoldingsTable is unique to portfolio results.
+      expect(screen.getByText("Contribution")).toBeInTheDocument();
+      expect(screen.getByText("Risk & return")).toBeInTheDocument();
+    });
+  });
+
   it("renders the server error verbatim on 422, without a retry button", async () => {
     server.use(
       http.get("/api/compare", () =>
