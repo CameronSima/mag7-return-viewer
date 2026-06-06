@@ -1,13 +1,6 @@
 import { useMemo, useState } from "react";
-import {
-  Alert,
-  Box,
-  Button,
-  Container,
-  Stack,
-  Typography,
-} from "@mui/material";
-import dayjs, { Dayjs } from "dayjs";
+import { format, subYears } from "date-fns";
+import { Share2, TriangleAlert } from "lucide-react";
 import { DateRangePicker } from "./components/DateRangePicker";
 import { TickerInput } from "./components/TickerInput";
 import { GrowthChart } from "./components/GrowthChart";
@@ -15,6 +8,9 @@ import { ComparisonTable } from "./components/ComparisonTable";
 import { CorrelationHeatmap } from "./components/CorrelationHeatmap";
 import { LoadingState } from "./components/LoadingState";
 import { ErrorState } from "./components/ErrorState";
+import { Button } from "./components/ui/button";
+import { Badge } from "./components/ui/badge";
+import { Alert, AlertDescription } from "./components/ui/alert";
 import { useComparison } from "./hooks/useComparison";
 import { useUrlState } from "./hooks/useUrlState";
 import { ApiError } from "./api/client";
@@ -23,8 +19,8 @@ import { MAX_COMPARE_TICKERS } from "./types";
 // Sensible defaults so a bare visit (no URL params) shows something compelling
 // immediately: the leaders against the S&P 500 over the last five years.
 const DEFAULT_TICKERS = ["AAPL", "MSFT", "NVDA", "GOOGL", "SPY"];
-const DEFAULT_START = dayjs().subtract(5, "year").format("YYYY-MM-DD");
-const DEFAULT_END = dayjs().format("YYYY-MM-DD");
+const DEFAULT_START = format(subYears(new Date(), 5), "yyyy-MM-dd");
+const DEFAULT_END = format(new Date(), "yyyy-MM-dd");
 
 // Quick-set presets offered above the ticker input.
 const PRESETS: { label: string; tickers: string[] }[] = [
@@ -70,74 +66,62 @@ export default function App() {
     }
   };
 
-  const startDay = state.start ? dayjs(state.start) : null;
-  const endDay = state.end ? dayjs(state.end) : null;
-
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Stack spacing={3}>
-        <Box>
-          <Typography variant="h4" gutterBottom>
-            Stock Comparison
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Compare the long-run performance of any stocks or ETFs — growth,
-            risk, and correlation, side by side. Free, no sign-up; every view is
-            a shareable link.
-          </Typography>
-        </Box>
+    <div className="mx-auto max-w-5xl px-4 py-10">
+      <header className="mb-8">
+        <Badge variant="accent" className="mb-3">
+          Free · no sign-up
+        </Badge>
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Stock Comparison
+        </h1>
+        <p className="mt-2 max-w-2xl text-[0.95rem] leading-relaxed text-muted-foreground">
+          Compare the long-run performance of any stocks or ETFs — growth, risk,
+          and correlation, side by side. Every view is a shareable link.
+        </p>
+      </header>
 
-        <Stack spacing={2}>
-          <Stack direction="row" sx={{ flexWrap: "wrap", gap: 1 }}>
-            {PRESETS.map((preset) => (
-              <Button
-                key={preset.label}
-                size="small"
-                variant="outlined"
-                onClick={() => setState({ ...state, tickers: preset.tickers })}>
-                {preset.label}
-              </Button>
-            ))}
-          </Stack>
-
-          <TickerInput
-            value={state.tickers}
-            onChange={(tickers) => setState({ ...state, tickers })}
-            max={MAX_COMPARE_TICKERS}
-          />
-
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={2}
-            sx={{ alignItems: { sm: "flex-start" } }}>
-            <DateRangePicker
-              start={startDay}
-              end={endDay}
-              onChange={(s: Dayjs | null, e: Dayjs | null) =>
-                setState({
-                  ...state,
-                  start: s ? s.format("YYYY-MM-DD") : null,
-                  end: e ? e.format("YYYY-MM-DD") : null,
-                })
-              }
-            />
+      <div className="flex flex-col gap-4 rounded-xl border border-border bg-card/40 p-4">
+        <div className="flex flex-wrap gap-2">
+          {PRESETS.map((preset) => (
             <Button
-              variant="outlined"
-              onClick={handleShare}
-              sx={{ whiteSpace: "nowrap" }}>
-              {copied ? "Copied!" : "Share link"}
+              key={preset.label}
+              size="sm"
+              variant="secondary"
+              onClick={() => setState({ ...state, tickers: preset.tickers })}>
+              {preset.label}
             </Button>
-          </Stack>
-        </Stack>
+          ))}
+        </div>
 
+        <TickerInput
+          value={state.tickers}
+          onChange={(tickers) => setState({ ...state, tickers })}
+          max={MAX_COMPARE_TICKERS}
+        />
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <DateRangePicker
+            start={state.start}
+            end={state.end}
+            onChange={(start, end) => setState({ ...state, start, end })}
+          />
+          <Button variant="outline" onClick={handleShare}>
+            <Share2 />
+            {copied ? "Copied!" : "Share link"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="mt-6">
         {state.tickers.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">
+          <p className="text-sm text-muted-foreground">
             Add at least one ticker to begin.
-          </Typography>
+          </p>
         ) : !state.start || !state.end ? (
-          <Typography variant="body2" color="text.secondary">
+          <p className="text-sm text-muted-foreground">
             Select a start and end date to load the comparison.
-          </Typography>
+          </p>
         ) : query.isLoading ? (
           <LoadingState />
         ) : query.error ? (
@@ -146,28 +130,31 @@ export default function App() {
             onRetry={showRetry ? () => query.refetch() : undefined}
           />
         ) : query.data ? (
-          <Stack spacing={3}>
+          <div className="flex flex-col gap-5">
             {query.data.missing.length > 0 && (
-              <Alert severity="warning" variant="outlined">
-                No data for: {query.data.missing.join(", ")}. Check the
-                symbol(s) — they may be misspelled or unavailable.
+              <Alert variant="warning">
+                <TriangleAlert />
+                <AlertDescription>
+                  No data for: {query.data.missing.join(", ")}. Check the
+                  symbol(s) — they may be misspelled or unavailable.
+                </AlertDescription>
               </Alert>
             )}
             {query.data.window.start && (
-              <Typography variant="body2" color="text.secondary">
+              <p className="text-sm text-muted-foreground">
                 Common window: {query.data.window.start} →{" "}
                 {query.data.window.end} · {query.data.window.trading_days}{" "}
                 trading days. Tickers are compared over the dates they all share.
-              </Typography>
+              </p>
             )}
             <GrowthChart series={series} />
             <ComparisonTable data={query.data} tickers={state.tickers} />
             {query.data.correlation.tickers.length >= 2 && (
               <CorrelationHeatmap correlation={query.data.correlation} />
             )}
-          </Stack>
+          </div>
         ) : null}
-      </Stack>
-    </Container>
+      </div>
+    </div>
   );
 }

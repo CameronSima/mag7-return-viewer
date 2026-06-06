@@ -1,10 +1,10 @@
 import { useMemo } from "react";
-import { Box, Card, CardContent, Typography } from "@mui/material";
 import PlotImport from "react-plotly.js";
-import { useTheme } from "@mui/material/styles";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CorrelationMatrix } from "@/types";
+import { CHART_THEME } from "@/utils/chartTheme";
 
-// See TickerCard/GrowthChart: normalize react-plotly.js's "double default".
+// See GrowthChart: normalize react-plotly.js's "double default".
 const Plot =
   (PlotImport as unknown as { default?: typeof PlotImport }).default ??
   PlotImport;
@@ -16,11 +16,9 @@ interface CorrelationHeatmapProps {
 /**
  * Daily-return correlation matrix as a heatmap. Diverging blue→red scale on
  * [-1, 1] so highly correlated pairs (red) and diversifiers (blue/negative)
- * pop out. Each cell is annotated with its value. Rendered only for 2+ tickers
- * (a single ticker has nothing to correlate against).
+ * pop out. Each cell is annotated with its value. Rendered only for 2+ tickers.
  */
 export function CorrelationHeatmap({ correlation }: CorrelationHeatmapProps) {
-  const theme = useTheme();
   const { tickers, matrix } = correlation;
 
   const chartData = useMemo(
@@ -32,7 +30,6 @@ export function CorrelationHeatmap({ correlation }: CorrelationHeatmapProps) {
         type: "heatmap" as const,
         zmin: -1,
         zmax: 1,
-        // Reversed RdBu: +1 red (move together), -1 blue (move apart).
         colorscale: "RdBu" as const,
         reversescale: true,
         showscale: true,
@@ -52,11 +49,7 @@ export function CorrelationHeatmap({ correlation }: CorrelationHeatmapProps) {
           y: rowTicker,
           text: matrix[i][j].toFixed(2),
           showarrow: false,
-          font: {
-            size: 11,
-            // White text reads on both ends of the diverging scale.
-            color: "#ffffff",
-          },
+          font: { size: 11, color: "#ffffff" },
         })),
       ),
     [matrix, tickers],
@@ -69,15 +62,15 @@ export function CorrelationHeatmap({ correlation }: CorrelationHeatmapProps) {
       paper_bgcolor: "transparent",
       plot_bgcolor: "transparent",
       font: {
-        color: theme.palette.text.primary,
-        family: theme.typography.fontFamily ?? "inherit",
+        color: CHART_THEME.text,
+        family: CHART_THEME.fontFamily,
         size: 11,
       },
       xaxis: { side: "bottom" as const, fixedrange: true },
       yaxis: { autorange: "reversed" as const, fixedrange: true },
       annotations,
     }),
-    [theme, annotations],
+    [annotations],
   );
 
   const config = useMemo(
@@ -85,16 +78,15 @@ export function CorrelationHeatmap({ correlation }: CorrelationHeatmapProps) {
     [],
   );
 
-  // Height scales a little with ticker count so cells stay roughly square.
   const height = Math.max(220, 40 + tickers.length * 44);
 
   return (
-    <Card variant="outlined">
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Return correlation</CardTitle>
+      </CardHeader>
       <CardContent>
-        <Typography variant="h6" sx={{ mb: 1 }}>
-          Return correlation
-        </Typography>
-        <Box sx={{ height }}>
+        <div style={{ height }}>
           <Plot
             data={chartData}
             layout={layout}
@@ -102,7 +94,7 @@ export function CorrelationHeatmap({ correlation }: CorrelationHeatmapProps) {
             style={{ width: "100%", height: "100%" }}
             useResizeHandler
           />
-        </Box>
+        </div>
       </CardContent>
     </Card>
   );

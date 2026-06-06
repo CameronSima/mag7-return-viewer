@@ -5,16 +5,16 @@
  * backend's MAX_COMPARE_TICKERS (10).
  */
 export const SERIES_COLORS = [
-  "#7c9eff", // blue
-  "#ffb74d", // amber
-  "#4caf50", // green
-  "#ef5350", // red
-  "#ba68c8", // purple
+  "#5e6ad2", // indigo (Linear accent)
+  "#4cb782", // green
+  "#e5a663", // amber
+  "#eb5757", // red
+  "#8b5cf6", // violet
   "#4dd0e1", // cyan
-  "#f06292", // pink
-  "#aed581", // lime
-  "#fff176", // yellow
-  "#a1887f", // brown
+  "#ec6cb9", // pink
+  "#a9c46c", // lime
+  "#d4b85a", // gold
+  "#9b8d7d", // taupe
 ] as const;
 
 /** Stable color for the i-th series, wrapping if there are somehow more than
