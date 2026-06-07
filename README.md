@@ -68,58 +68,72 @@ change the range, hit **Share link**. API docs are auto-generated at
 
 ---
 
-## Production (Docker)
+## Production
 
-The whole stack runs with one command. `docker compose` builds two services and
-wires them together:
+The frontend and backend deploy independently: the static SPA goes to
+**Cloudflare Pages** (global CDN, free TLS), and the **API + Redis** run as a
+container on **Coolify**. The browser loads the SPA from Pages and calls the API
+cross-origin.
+
+```
+                         ┌─ Cloudflare Pages ─┐        ┌──────── Coolify ────────┐
+   browser  ── HTML ─────▶  static SPA + SEO  │        │  reverse proxy (Traefik) │
+            ── /api/* ───────────── CORS ──────────────▶  api (uvicorn, N workers)│──▶ redis
+                         └────────────────────┘        └──────────────────────────┘
+```
+
+### Backend (Coolify) — `docker compose`
 
 ```bash
-cp .env.example .env          # optional — tweak ports / canonical URL
-docker compose up --build -d
+cp .env.example .env          # set CORS_ORIGINS to your Pages domain(s)
+docker compose up --build -d  # API at http://localhost:8000 (override HTTP_PORT)
 ```
 
-Then open **http://localhost:8080** (override with `HTTP_PORT`).
-
-```
-                  ┌──────────────────────────────────────────────────────┐
-  reverse proxy   │                       app                             │
-  (TLS, HTTP/2) ──▶  FastAPI / uvicorn — serves the API *and* the built  │──▶ redis
-                  │  SPA + prerendered SEO pages (N workers)             │   shared cache
-                  └──────────────────────────────────────────────────────┘
-```
-
-- **`app`** — one multi-stage image: a `node` stage builds the SPA and the
-  build-time SEO pages, a `uv` stage resolves backend deps against the pinned
-  `uv.lock`, and a slim non-root runtime stage runs uvicorn. The same process
-  serves the JSON API **and** the static frontend — content-hashed assets get an
-  immutable long cache, the HTML shell is never cached, prerendered pages at
-  `/compare/<slug>/index.html` are served as-is, and unknown paths fall back to
-  the SPA shell. Responses are gzipped. Because it's one origin, there's **no
-  CORS in production**.
+- **`api`** — multi-stage image (`uv` resolves deps against the pinned `uv.lock`
+  → slim non-root runtime running multi-worker uvicorn). API-only: no static
+  serving, no Node in the image. Responses are gzipped.
 - **`redis`** — the shared price/stats cache. Because the cache lives in Redis
   rather than each worker's memory, all workers (and future replicas) share one
   warm cache instead of `N` cold ones. Memory is capped with an `allkeys-lru`
   eviction policy and lightly persisted to a named volume.
 
-**Why no separate web server?** A platform reverse proxy (here, Coolify's
-Traefik) already terminates TLS and handles HTTP/2 and routing at the edge, so a
-dedicated nginx/Caddy just to serve static files would be redundant. Starlette's
-`StaticFiles`/`FileResponse` serve the build efficiently behind it. The browser
-calls the API under `/api`; the app strips that prefix before routing (the
-production equivalent of the Vite dev proxy), so the client is identical in both
-environments and the routers stay mounted at the root (`/compare`, `/returns`, …).
+The cache backend is chosen at runtime: with `REDIS_URL` set (as in compose) the
+app uses Redis; unset (local dev and tests) it falls back to the in-memory TTL
+cache — same `Cache` protocol either way. **CORS** is the one thing that matters
+in this split: set `CORS_ORIGINS` to your Pages domain(s) (comma-separated) so
+the browser is allowed to call the API. On Coolify, point it at
+`docker-compose.yml` and map an API domain (e.g. `api.example.com`) to the `api`
+service's port 8000 — TLS handled for you. The app exposes a `/health` check.
 
-The cache backend is selected at runtime: when `REDIS_URL` is set (as it is in
-compose) the app uses Redis; unset (as in local dev and tests) it falls back to
-the in-memory TTL cache. Both implement the same `Cache` protocol, so endpoint
-code is identical either way. Configuration (`HTTP_PORT`, `VITE_SITE_URL`,
-`WEB_CONCURRENCY`, `CORS_ORIGINS`) lives in `.env` — see `.env.example`.
+### Frontend (Cloudflare Pages)
 
-**Deploying on Coolify:** point it at this repo's `docker-compose.yml`; it
-builds the image, runs Redis, and maps your domain to the `app` service's port
-8000 (TLS handled for you). Set `VITE_SITE_URL` to your real domain as a build
-arg so the prerendered SEO pages and sitemap carry correct canonical URLs. The
-app defines a `/health` check; Redis has its own, and the app waits for it.
+Create a Pages project from this repo with:
+
+| Setting           | Value                          |
+| ----------------- | ------------------------------ |
+| Root directory    | `frontend`                     |
+| Build command     | `npm run build`                |
+| Build output      | `dist`                         |
+
+Set two build-time variables (see `frontend/.env.example`):
+
+- `VITE_API_BASE_URL` — the absolute API origin, e.g. `https://api.example.com`.
+  The client prefixes its `/api/*` calls with this. Left empty in local dev, where
+  calls stay relative and use the Vite proxy.
+- `VITE_SITE_URL` — your Pages domain, baked into the prerendered SEO pages and
+  `sitemap.xml` as the canonical URL.
+
+`frontend/public/_redirects` gives the SPA its `/* → /index.html 200` fallback
+(real files — hashed assets and the prerendered `/compare/<slug>/` pages — are
+served first), and `frontend/public/_headers` sets an immutable long cache on
+`/assets/*` and `no-cache` on the HTML shell. Both are copied into `dist/` by the
+build, so Pages picks them up automatically.
+
+**The `/api` prefix** is consistent across environments: the client calls
+`/api/*`, the backend strips that prefix before routing (routers stay mounted at
+the root — `/compare`, `/returns`, …). In dev the Vite proxy forwards `/api` to
+`localhost:8000`; in production the client hits `${VITE_API_BASE_URL}/api/*`
+directly.
 
 ---
 
@@ -490,13 +504,12 @@ In roughly the order I'd tackle them:
    What's left: validate keywords with a tool, grow the seed list, generate OG
    images, and add on-demand SSR for the unbounded tail. Research + checklist in
    [`docs/seo.md`](docs/seo.md).
-3. **Redis cache** behind the existing `Cache` protocol (no call-site changes).
-4. **Symbol search/validation** — resolve and disambiguate tickers as the user
+3. **Symbol search/validation** — resolve and disambiguate tickers as the user
    types, instead of discovering a typo only after the request.
-5. **Configuration via `pydantic-settings`** sourced from the environment.
-6. **CI** (GitHub Actions): pytest + ruff + mypy; vitest + tsc + eslint.
-7. **Risk-free input** for an excess-return Sharpe, for users who want it.
-8. **Selectable rolling window** (30/63/126/252d) — the rolling views ship at a
+4. **Configuration via `pydantic-settings`** sourced from the environment.
+5. **CI** (GitHub Actions): pytest + ruff + mypy; vitest + tsc + eslint.
+6. **Risk-free input** for an excess-return Sharpe, for users who want it.
+7. **Selectable rolling window** (30/63/126/252d) — the rolling views ship at a
    fixed 63-day window; a selector would refetch with the chosen span.
 
 ---
@@ -506,14 +519,13 @@ In roughly the order I'd tackle them:
 ```
 .
 ├── README.md
-├── Dockerfile                 # Single image: builds SPA, serves it + API
-├── docker-compose.yml         # app + redis
-├── .env.example               # HTTP_PORT, VITE_SITE_URL, WEB_CONCURRENCY, …
+├── docker-compose.yml         # api + redis (backend; frontend is on Pages)
+├── .env.example               # HTTP_PORT, WEB_CONCURRENCY, CORS_ORIGINS
 ├── backend/
 │   ├── pyproject.toml
+│   ├── Dockerfile             # API-only image (uv → slim uvicorn)
 │   ├── app/
 │   │   ├── main.py            # FastAPI app, CORS, /api strip, router mounting
-│   │   ├── static.py          # Serve the built SPA + SEO pages (prod)
 │   │   ├── config.py          # Constants + env (tickers, cache, REDIS_URL, …)
 │   │   ├── models.py          # Pydantic models / wire contracts
 │   │   ├── dependencies.py    # DI providers (caches: Redis or in-memory)
@@ -536,7 +548,9 @@ In roughly the order I'd tackle them:
 │       └── test_portfolio_api.py
 └── frontend/
     ├── package.json
+    ├── .env.example           # VITE_API_BASE_URL, VITE_SITE_URL (Pages build)
     ├── index.html             # SEO head: meta, OG/Twitter, JSON-LD
+    ├── public/                # _redirects (SPA fallback), _headers (caching)
     ├── scripts/
     │   └── generate-seo-pages.ts  # build-time pre-render + sitemap/robots
     ├── src/

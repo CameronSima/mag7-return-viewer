@@ -1,0 +1,12 @@
+# Cloudflare Pages response headers.
+
+# Vite emits content-hashed asset filenames, so they're immutable — a changed
+# file always has a new URL. Cache them hard.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# The HTML shell must never be cached, so a new deploy is picked up immediately.
+/index.html
+  Cache-Control: no-cache
+/
+  Cache-Control: no-cache
