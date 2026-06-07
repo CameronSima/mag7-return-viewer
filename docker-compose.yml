@@ -1,0 +1,56 @@
+# Backend stack for the MAG7 return viewer: the API-only FastAPI service plus
+# Redis (shared cache). The frontend is built and hosted separately on
+# Cloudflare Pages (see README → Production), which calls this API cross-origin.
+#
+#   Cloudflare Pages (static SPA)  ──CORS──▶  api (uvicorn)  ──▶  redis
+#                                              FastAPI, N workers   cache
+#
+# Local:    docker compose up --build -d   (API at http://localhost:${HTTP_PORT:-8000})
+# Coolify:  point it at this compose file; it provides the edge proxy + TLS and
+#           maps an API domain (e.g. api.example.com) to the api service's port.
+
+name: mag7-return-viewer
+
+services:
+  api:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      # Shared cache so every uvicorn worker (and replica) hits the same entries.
+      REDIS_URL: redis://redis:6379/0
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      # Allowed CORS origins: your Cloudflare Pages domain(s), comma-separated
+      # (e.g. https://example.com,https://example.pages.dev).
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "${HTTP_PORT:-8000}:8000"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Cap memory and evict least-recently-used keys when full — the cache is
+    # disposable, so LRU is the right policy. Light persistence avoids a full
+    # cold start on restart.
+    command:
+      - redis-server
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --save
+      - "60"
+      - "100"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  redis-data:

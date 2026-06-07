@@ -1,0 +1,19 @@
+# Keep the build context small and reproducible — the image builds its own venv
+# from pyproject.toml + uv.lock, so none of the local cruft below is needed.
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+tests/
+*.md
+.env
+.env.*
+!.env.example
