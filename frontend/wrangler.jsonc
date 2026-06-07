@@ -1,0 +1,23 @@
+{
+  // Cloudflare Workers Static Assets config for the SPA.
+  //
+  // The frontend is a static Vite build with no server-side code, so this is an
+  // assets-only Worker (no `main` entrypoint). Cloudflare serves the files in
+  // `dist/` directly, setting the correct Content-Type per file extension — this
+  // is what fixes the "Failed to load module script ... MIME type of ''" error
+  // that occurs when the build output isn't served as static assets.
+  //
+  // Build first, then deploy:
+  //   npm run build && npx wrangler deploy
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mag7-return-viewer",
+  "compatibility_date": "2025-04-01",
+  "assets": {
+    "directory": "./dist",
+    // Serve real files first (hashed assets, prerendered /compare/<slug>/ pages);
+    // anything unmatched falls back to the SPA shell with a 200. This is the
+    // Workers-native equivalent of the `/* /index.html 200` rule in
+    // public/_redirects (which only applies on Cloudflare Pages).
+    "not_found_handling": "single-page-application"
+  }
+}

@@ -105,9 +105,28 @@ the browser is allowed to call the API. On Coolify, point it at
 `docker-compose.yml` and map an API domain (e.g. `api.example.com`) to the `api`
 service's port 8000 — TLS handled for you. The app exposes a `/health` check.
 
-### Frontend (Cloudflare Pages)
+### Frontend (Cloudflare)
 
-Create a Pages project from this repo with:
+The static SPA can be served either from **Cloudflare Pages** or as a static-assets
+**Cloudflare Worker** — pick one. In both cases the deployable artifact is the
+`dist/` directory produced by `npm run build` (run from `frontend/`).
+
+**Option A — Workers (`*.workers.dev`):** the repo ships `frontend/wrangler.jsonc`,
+which points an assets-only Worker at `dist/`. Cloudflare serves the build directly,
+setting the correct `Content-Type` per file. Deploy with:
+
+```bash
+cd frontend
+npm run deploy        # = npm run build && wrangler deploy
+```
+
+> Serving the SPA from a Worker **without** this assets config is what causes
+> `Failed to load module script: … MIME type of ''` — the Worker returns the JS
+> module with no `Content-Type`, so the browser refuses it. The `wrangler.jsonc`
+> `assets` block fixes that and adds the SPA fallback (`not_found_handling:
+> "single-page-application"`).
+
+**Option B — Pages (`*.pages.dev`):** create a Pages project from this repo with:
 
 | Setting           | Value                          |
 | ----------------- | ------------------------------ |
@@ -120,14 +139,15 @@ Set two build-time variables (see `frontend/.env.example`):
 - `VITE_API_BASE_URL` — the absolute API origin, e.g. `https://api.example.com`.
   The client prefixes its `/api/*` calls with this. Left empty in local dev, where
   calls stay relative and use the Vite proxy.
-- `VITE_SITE_URL` — your Pages domain, baked into the prerendered SEO pages and
+- `VITE_SITE_URL` — your deployed domain, baked into the prerendered SEO pages and
   `sitemap.xml` as the canonical URL.
 
 `frontend/public/_redirects` gives the SPA its `/* → /index.html 200` fallback
 (real files — hashed assets and the prerendered `/compare/<slug>/` pages — are
 served first), and `frontend/public/_headers` sets an immutable long cache on
 `/assets/*` and `no-cache` on the HTML shell. Both are copied into `dist/` by the
-build, so Pages picks them up automatically.
+build, so Pages picks them up automatically. (On Workers, the `wrangler.jsonc`
+`not_found_handling` setting covers the SPA fallback; `_headers` is still honored.)
 
 **The `/api` prefix** is consistent across environments: the client calls
 `/api/*`, the backend strips that prefix before routing (routers stay mounted at
