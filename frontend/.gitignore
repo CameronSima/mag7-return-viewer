@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Committed production config (public, non-secret build vars). The repo-root
+# .gitignore ignores all .env.* files; re-include this one so the production
+# API/site URLs ship with the build.
+!.env.production
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
