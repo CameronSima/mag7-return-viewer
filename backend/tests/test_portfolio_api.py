@@ -135,9 +135,15 @@ def test_portfolio_reports_missing_holding(client: TestClient) -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["missing"] == ["GHOST"]
-    # MSFT absorbs the full weight after GHOST is dropped.
+    # MSFT absorbs the full weight after GHOST is dropped, and (as the only
+    # holding) carries all the risk.
     assert body["holdings"] == [
-        {"ticker": "MSFT", "weight": 1.0, "total_return": body["holdings"][0]["total_return"]}
+        {
+            "ticker": "MSFT",
+            "weight": 1.0,
+            "risk_contribution": 1.0,
+            "total_return": body["holdings"][0]["total_return"],
+        }
     ]
 
 

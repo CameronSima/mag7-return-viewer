@@ -92,8 +92,9 @@ typo'd symbol has no data, and the shareable URL.
   **benchmark-relative panel** adds beta, annualized alpha, R², tracking error,
   and information ratio; a **calendar-year returns** chart + table shows
   year-by-year performance vs. the benchmark (partial first/last years flagged);
-  and a **holdings breakdown** shows each name's weight, total return, and
-  weighted contribution.
+  and a **holdings breakdown** shows each name's weight, **share of portfolio
+  risk** (which can diverge from weight — flagging concentration), total return,
+  and weighted contribution.
 
 Weights are entered raw and shown normalized to 100%; an "Equal weight" button
 balances them. A dropped (no-data) holding renormalizes the rest.
@@ -265,7 +266,7 @@ optional → equal-weight), `rebalance` (`none`|`monthly`|`quarterly`|`annually`
   },
   "correlation": { "tickers": ["Portfolio", "SPY"], "matrix": [[1.0, 0.93], [0.93, 1.0]] },
   "window": { "start": "2020-06-08", "end": "2025-06-06", "trading_days": 1258 },
-  "holdings": [{ "ticker": "AAPL", "weight": 0.4, "total_return": 2.41 }],
+  "holdings": [{ "ticker": "AAPL", "weight": 0.4, "risk_contribution": 0.46, "total_return": 2.41 }],
   "annual": [{ "year": 2020, "partial": true, "returns": { "Portfolio": 0.21, "SPY": 0.12 } }],
   "benchmark": "SPY",
   "benchmark_metrics": {
@@ -320,6 +321,15 @@ portfolio's daily returns on the benchmark's (risk-free rate = 0):
   (portfolio − benchmark) daily return.
 - **Information ratio** — annualized active return ÷ tracking error.
 
+And a **per-holding risk contribution**, decomposing portfolio variance with the
+target weights and the holdings' return covariance:
+
+- `σ_p² = wᵀΣw`; each holding's component contribution `CTR_i = w_i (Σw)_i`
+  sums to `σ_p²` (Euler's theorem), so the **percent contribution to risk**
+  `PCR_i = CTR_i / σ_p²` sums to 1. Because `Σw` carries covariances, a volatile
+  or highly-correlated name can contribute more risk than its weight — a
+  diversifier less.
+
 Degenerate inputs (a single common day, a zero-variance series, a flat
 benchmark) yield zeros, not `NaN`/`inf`, so the JSON is always valid and the UI
 never shows garbage.
@@ -346,19 +356,21 @@ never shows garbage.
 ```bash
 # Backend
 cd backend
-uv run pytest -v          # 62 tests
+uv run pytest -v          # 67 tests
 uv run ruff check . && uv run mypy app
 
 # Frontend
 cd frontend
-npm test                  # 32 tests
+npm test                  # 35 tests
 npx tsc -b && npx eslint .
 ```
 
 **Backend** covers the analytics math (common-window alignment, growth rebasing,
 CAGR/vol/Sharpe, max drawdown, correlation, degenerate inputs, downsampling, and
 the portfolio simulation incl. rebalancing vs. buy-and-hold), calendar-year chaining + partial-year flagging, benchmark-relative metrics
-(beta/alpha/R²/tracking error/information ratio), the cache, and all endpoints
+(beta/alpha/R²/tracking error/information ratio), risk-contribution decomposition
+(equal split for uncorrelated equal-vol holdings, concentration in the volatile
+one), the cache, and all endpoints
 end-to-end (happy path, ticker/weight normalization & validation, missing-holding
 renormalization, no-overlap → 422, no-data → 422, upstream → 502, cache hits)
 against a fake price fetcher.
@@ -381,19 +393,14 @@ In roughly the order I'd tackle them:
 1. **Trim the bundle.** Plotly is ~80% of it. Most of the app needs only
    `plotly.js-basic-dist`; the heatmap is the lone holdout, so lazy-load the
    correlation view (or its Plotly bundle) behind a dynamic import.
-2. **Per-holding risk contribution** — decompose portfolio volatility into each
-   holding's marginal contribution (not just its return contribution), to expose
-   concentration risk that weights alone hide. Completes the analytics layer
-   alongside the calendar-year returns and benchmark-relative metrics already
-   shipped.
-3. **Rolling views** — rolling correlation and rolling volatility, for when a
+2. **Rolling views** — rolling correlation and rolling volatility, for when a
    single window-wide number hides a regime change.
-4. **Redis cache** behind the existing `Cache` protocol (no call-site changes).
-5. **Symbol search/validation** — resolve and disambiguate tickers as the user
+3. **Redis cache** behind the existing `Cache` protocol (no call-site changes).
+4. **Symbol search/validation** — resolve and disambiguate tickers as the user
    types, instead of discovering a typo only after the request.
-6. **Configuration via `pydantic-settings`** sourced from the environment.
-7. **CI** (GitHub Actions): pytest + ruff + mypy; vitest + tsc + eslint.
-8. **Risk-free input** for an excess-return Sharpe, for users who want it.
+5. **Configuration via `pydantic-settings`** sourced from the environment.
+6. **CI** (GitHub Actions): pytest + ruff + mypy; vitest + tsc + eslint.
+7. **Risk-free input** for an excess-return Sharpe, for users who want it.
 
 ---
 
@@ -449,7 +456,7 @@ In roughly the order I'd tackle them:
     │       └── LoadingState.tsx       ErrorState.tsx
     └── tests/
         ├── setup.ts  test-utils.tsx  mocks/{server,handlers}.ts
-        ├── components/{App,ComparisonTable,TickerInput,PortfolioBuilder,AnnualReturns,BenchmarkMetricsPanel}.test.tsx
+        ├── components/{App,ComparisonTable,TickerInput,PortfolioBuilder,AnnualReturns,BenchmarkMetricsPanel,HoldingsTable}.test.tsx
         ├── hooks/useUrlState.test.ts
         └── utils/stats.test.ts
 ```

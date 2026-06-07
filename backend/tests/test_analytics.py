@@ -10,6 +10,7 @@ from app.services.analytics import (
     compute_comparison_stats,
     compute_correlation,
     compute_growth,
+    compute_risk_contributions,
     describe_window,
     restrict_to_common_window,
     simulate_portfolio_value,
@@ -338,3 +339,59 @@ def test_benchmark_metrics_none_when_too_few_observations() -> None:
         _FOUR_DAYS[:2],
     )
     assert compute_benchmark_metrics(prices, "Portfolio", "SPY", 252) is None
+
+
+def test_risk_contributions_equal_for_uncorrelated_equal_vol() -> None:
+    """Two equally-weighted holdings with equal volatility and zero correlation
+    split the risk 50/50 — and the contributions sum to 1."""
+    # Orthogonal return paths (product sums to zero) with identical variance.
+    prices = _frame(
+        {
+            "AAA": _prices_from_returns([0.01, -0.01, 0.01, -0.01]),
+            "BBB": _prices_from_returns([0.01, 0.01, -0.01, -0.01]),
+        },
+        ["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05", "2024-01-08"],
+    )
+    risk = compute_risk_contributions(prices, {"AAA": 0.5, "BBB": 0.5})
+
+    assert risk["AAA"] == pytest.approx(0.5)
+    assert risk["BBB"] == pytest.approx(0.5)
+    assert sum(risk.values()) == pytest.approx(1.0)
+
+
+def test_risk_contributions_concentrate_in_the_volatile_holding() -> None:
+    """A high-volatility holding carries far more risk than its weight; the
+    contributions still sum to 1."""
+    prices = _frame(
+        {
+            "CALM": _prices_from_returns([0.005, -0.005, 0.005, -0.005]),
+            "WILD": _prices_from_returns([0.02, 0.02, -0.02, -0.02]),
+        },
+        ["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05", "2024-01-08"],
+    )
+    risk = compute_risk_contributions(prices, {"CALM": 0.5, "WILD": 0.5})
+
+    assert sum(risk.values()) == pytest.approx(1.0)
+    # The volatile name dominates risk despite an equal 50% weight.
+    assert risk["WILD"] > 0.9
+    assert risk["WILD"] > risk["CALM"]
+
+
+def test_risk_contributions_single_holding_is_all_the_risk() -> None:
+    # Varying returns so the lone holding has nonzero variance to attribute.
+    prices = _frame({"AAA": _prices_from_returns([0.1, -0.05, 0.08])}, _FOUR_DAYS)
+    assert compute_risk_contributions(prices, {"AAA": 1.0}) == {"AAA": pytest.approx(1.0)}
+
+
+def test_risk_contributions_zero_variance_is_zeros() -> None:
+    """Flat holdings have no variance to decompose -> zeros, not NaN."""
+    prices = _frame(
+        {"AAA": [10.0, 10.0, 10.0], "BBB": [20.0, 20.0, 20.0]},
+        _FOUR_DAYS[:3],
+    )
+    risk = compute_risk_contributions(prices, {"AAA": 0.5, "BBB": 0.5})
+    assert risk == {"AAA": 0.0, "BBB": 0.0}
+
+
+def test_risk_contributions_empty_frame() -> None:
+    assert compute_risk_contributions(pd.DataFrame(), {}) == {}

@@ -110,11 +110,14 @@ export interface HoldingInput {
   weight: number;
 }
 
-/** A portfolio constituent in the response: normalized weight + total return. */
+/** A portfolio constituent in the response: normalized weight, total return,
+ *  and share of portfolio risk (percent contribution to volatility, summing to
+ *  1 across holdings — can differ from weight). */
 export interface Holding {
   ticker: string;
   weight: number;
   total_return: number;
+  risk_contribution: number;
 }
 
 /** One calendar year's return for each series, keyed by series name. `partial`

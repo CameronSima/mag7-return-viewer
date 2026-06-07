@@ -21,6 +21,7 @@ from app.services.analytics import (
     compute_comparison_stats,
     compute_correlation,
     compute_growth,
+    compute_risk_contributions,
     describe_window,
     restrict_to_common_window,
     simulate_portfolio_value,
@@ -127,6 +128,7 @@ def get_portfolio(
     portfolio_value = simulate_portfolio_value(
         holding_prices, norm_weights, query.rebalance
     )
+    risk = compute_risk_contributions(holding_prices, norm_weights)
 
     # Assemble a "price-like" frame: the portfolio value plus the benchmark, so
     # the existing growth/stats/correlation analytics apply unchanged.
@@ -139,6 +141,7 @@ def get_portfolio(
         {
             "ticker": t,
             "weight": norm_weights[t],
+            "risk_contribution": risk.get(t, 0.0),
             "total_return": float(
                 holding_prices[t].iloc[-1] / holding_prices[t].iloc[0] - 1.0
             ),

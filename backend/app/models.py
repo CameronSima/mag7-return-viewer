@@ -192,11 +192,14 @@ RebalanceFreq = Literal["none", "monthly", "quarterly", "annually"]
 
 class Holding(BaseModel):
     """One portfolio constituent: its normalized weight (post-renormalization if
-    any sibling was dropped) and its total return over the common window."""
+    any sibling was dropped), total return over the common window, and share of
+    portfolio risk (percent contribution to volatility; sums to 1 across
+    holdings, and can differ from weight)."""
 
     ticker: str
     weight: float
     total_return: float
+    risk_contribution: float
 
 
 class AnnualReturn(BaseModel):

@@ -201,6 +201,46 @@ def simulate_portfolio_value(
     return pd.Series(values, index=prices.index)
 
 
+def compute_risk_contributions(
+    holding_prices: pd.DataFrame,
+    weights: dict[str, float],
+) -> dict[str, float]:
+    """Each holding's share of total portfolio volatility (percent contribution
+    to risk), from the target weights and the holdings' return covariance.
+
+    Returns ``ticker -> fraction`` that sums to 1 (Euler's theorem on the
+    homogeneous risk function). Unlike weight, this accounts for each holding's
+    own volatility *and* its correlation with the rest — so a volatile or
+    highly-correlated name can carry more risk than its weight suggests, and a
+    diversifier less. The decomposition:
+
+        σ_p² = wᵀ Σ w            (portfolio variance)
+        CTR_i = w_i (Σw)_i        (component contribution; Σ_i CTR_i = σ_p²)
+        PCR_i = CTR_i / σ_p²      (percent contribution; Σ_i PCR_i = 1)
+
+    Uses target weights (the policy mix), so it's a risk-budget view independent
+    of rebalancing. Zeros when variance is 0 (every holding flat) or there's too
+    little history, rather than NaN/inf.
+    """
+    if holding_prices.empty or holding_prices.shape[1] == 0:
+        return {}
+
+    tickers = [str(c) for c in holding_prices.columns]
+    returns = holding_prices.pct_change(fill_method=None).iloc[1:].dropna()
+    if len(returns) < 2:
+        return {t: 0.0 for t in tickers}
+
+    w = np.array([weights[t] for t in tickers], dtype=float)
+    cov = returns.cov().to_numpy()  # daily sample covariance (ddof=1)
+    portfolio_var = float(w @ cov @ w)
+    if portfolio_var <= 0:
+        return {t: 0.0 for t in tickers}
+
+    # PCR_i = w_i (Σw)_i / σ_p² ; the vector sums to 1.
+    pcr = (w * (cov @ w)) / portfolio_var
+    return {t: _finite(float(pcr[i])) for i, t in enumerate(tickers)}
+
+
 def _rebalance_mask(index: pd.Index, rebalance: str) -> np.ndarray:
     """Boolean mask marking the first trading day of each new period as a
     rebalance day (never the first day — it's already at target weights)."""

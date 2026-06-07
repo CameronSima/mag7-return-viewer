@@ -95,9 +95,9 @@ export const samplePortfolioResponse: PortfolioResponse = {
   },
   window: { start: "2024-01-02", end: "2024-01-04", trading_days: 3 },
   holdings: [
-    { ticker: "AAPL", weight: 0.4, total_return: 0.1 },
-    { ticker: "MSFT", weight: 0.3, total_return: 0.05 },
-    { ticker: "NVDA", weight: 0.3, total_return: 0.2 },
+    { ticker: "AAPL", weight: 0.4, total_return: 0.1, risk_contribution: 0.35 },
+    { ticker: "MSFT", weight: 0.3, total_return: 0.05, risk_contribution: 0.2 },
+    { ticker: "NVDA", weight: 0.3, total_return: 0.2, risk_contribution: 0.45 },
   ],
   annual: [
     { year: 2023, partial: true, returns: { Portfolio: 0.05, SPY: 0.04 } },
