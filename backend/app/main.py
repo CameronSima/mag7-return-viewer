@@ -14,7 +14,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from app.api.compare import router as compare_router
 from app.api.portfolio import router as portfolio_router
 from app.api.returns import router as returns_router
-from app.config import CORS_ORIGINS
+from app.config import CORS_ORIGIN_REGEX, CORS_ORIGINS
 
 
 class StripApiPrefix:
@@ -59,11 +59,14 @@ app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(StripApiPrefix)
 
 # CORS origins come from config (CORS_ORIGINS env var), defaulting to the Vite
-# dev server. The frontend is served cross-origin from Cloudflare Pages, so set
-# CORS_ORIGINS to the Pages domain(s) in production.
+# dev server. The frontend is served cross-origin from Cloudflare (Workers
+# `*.workers.dev` or Pages `*.pages.dev`), so set CORS_ORIGINS to that exact
+# origin in production. CORS_ORIGIN_REGEX optionally allows a family of origins
+# (e.g. hashed preview deployments) the static list can't enumerate.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(CORS_ORIGINS),
+    allow_origin_regex=CORS_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["GET"],
     allow_headers=["*"],

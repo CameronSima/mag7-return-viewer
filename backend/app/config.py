@@ -57,11 +57,21 @@ ROLLING_WINDOW: Final[int] = 63
 # back to the in-memory cache — handy for local runs and tests with no Redis.
 REDIS_URL: Final[str | None] = os.getenv("REDIS_URL") or None
 
-# Allowed CORS origins, comma-separated. In the Docker setup the frontend is
-# served same-origin (nginx proxies /api), so CORS isn't exercised; this keeps
-# the standalone Vite dev server working and lets prod lock down the origin.
+# Allowed CORS origins, comma-separated. The frontend is served cross-origin
+# from Cloudflare (Workers `*.workers.dev` or Pages `*.pages.dev`), so this MUST
+# include its exact origin in production, e.g.
+#   CORS_ORIGINS=https://mag7-return-viewer.cjsima.workers.dev
+# Defaults to the Vite dev server so local `npm run dev` works out of the box.
 CORS_ORIGINS: Final[tuple[str, ...]] = tuple(
     origin.strip()
     for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
     if origin.strip()
 )
+
+# Optional regex matching additional allowed origins. Cloudflare gives preview
+# deployments hashed subdomains (e.g. https://<hash>-mag7-return-viewer.cjsima
+# .workers.dev), which an exact-match list can't anticipate. Set this to allow a
+# whole family of origins, e.g.
+#   CORS_ORIGIN_REGEX=https://([a-z0-9-]+-)?mag7-return-viewer\.cjsima\.workers\.dev
+# Unset by default so only the explicit CORS_ORIGINS list applies.
+CORS_ORIGIN_REGEX: Final[str | None] = os.getenv("CORS_ORIGIN_REGEX") or None

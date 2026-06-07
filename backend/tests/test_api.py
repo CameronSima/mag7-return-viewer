@@ -59,6 +59,27 @@ def test_returns_endpoint_handles_upstream_failure(client: TestClient) -> None:
     assert "unavailable" in response.json()["detail"].lower()
 
 
+def test_cors_allows_configured_origin(client: TestClient) -> None:
+    """The CORS middleware reflects an allowed origin back to the browser.
+
+    Regression guard for the cross-origin Cloudflare frontend: if CORS isn't
+    wired (or a refactor drops the configured origin) the browser blocks every
+    API call. The default config allows the Vite dev origin, so assert it is
+    echoed and that an unrelated origin is not.
+    """
+    allowed = "http://localhost:5173"
+    response = client.get("/returns?start=2024-01-02&end=2024-01-08", headers={"Origin": allowed})
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == allowed
+
+    # An origin outside the allowlist gets no ACAO header (browser blocks it).
+    blocked = client.get(
+        "/returns?start=2024-01-02&end=2024-01-08",
+        headers={"Origin": "https://evil.example.com"},
+    )
+    assert "access-control-allow-origin" not in blocked.headers
+
+
 def test_returns_endpoint_no_data_returns_422(client: TestClient) -> None:
     """A range with no trading data is a 422 (user fixable), not a 502."""
     from app.services.prices import NoPriceDataError

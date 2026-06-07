@@ -85,7 +85,7 @@ cross-origin.
 ### Backend (Coolify) — `docker compose`
 
 ```bash
-cp .env.example .env          # set CORS_ORIGINS to your Pages domain(s)
+cp .env.example .env          # set CORS_ORIGINS to your frontend origin (Workers/Pages)
 docker compose up --build -d  # API at http://localhost:8000 (override HTTP_PORT)
 ```
 
@@ -100,8 +100,11 @@ docker compose up --build -d  # API at http://localhost:8000 (override HTTP_PORT
 The cache backend is chosen at runtime: with `REDIS_URL` set (as in compose) the
 app uses Redis; unset (local dev and tests) it falls back to the in-memory TTL
 cache — same `Cache` protocol either way. **CORS** is the one thing that matters
-in this split: set `CORS_ORIGINS` to your Pages domain(s) (comma-separated) so
-the browser is allowed to call the API. On Coolify, point it at
+in this split: set `CORS_ORIGINS` to your frontend's exact origin (comma-separated
+if more than one) so the browser is allowed to call the API — e.g. for the Workers
+deployment, `CORS_ORIGINS=https://mag7-return-viewer.cjsima.workers.dev`. To allow
+a family of origins (such as Cloudflare preview deployments with hashed
+subdomains), set `CORS_ORIGIN_REGEX` instead of/alongside the list. On Coolify, point it at
 `docker-compose.yml` and map an API domain (e.g. `api.example.com`) to the `api`
 service's port 8000 — TLS handled for you. The app exposes a `/health` check.
 
