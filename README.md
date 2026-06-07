@@ -80,7 +80,8 @@ change the range, hit **Share link**. API docs are auto-generated at
   diversifiers (low/negative correlation) stand out from names that move together.
 
 Plus quick presets (MAG7, MAG7 vs. S&P 500, the index ETFs), a warning when a
-typo'd symbol has no data, and the shareable URL.
+typo'd symbol has no data, the shareable URL, and a **⌘K command palette** for
+switching modes, applying a preset, or setting a date range from the keyboard.
 
 **Portfolio mode** — define weighted holdings, pick a rebalance frequency
 (buy & hold, monthly, quarterly, annually) and an optional benchmark:
@@ -214,8 +215,10 @@ The UI is built on hand-authored [shadcn/ui](https://ui.shadcn.com) primitives
 black-box library — styled to mimic Linear: a near-black cool canvas with a faint
 indigo glow, hairline borders, the `#5e6ad2` accent, and crisp headings with tight
 tracking. The data-heavy widgets are headless and free: the sortable tables use
-**TanStack Table**, the date range uses **react-day-picker**, and the rebalance
-picker uses a **Radix Select**. No component library license, no paywalled pieces.
+**TanStack Table**, the date range uses **react-day-picker**, the rebalance picker
+a **Radix Select**, and the ⌘K palette **cmdk**. Motion is **tw-animate-css** (the
+Radix open/close transitions plus a subtle results entrance), gated behind
+`prefers-reduced-motion`. No component library license, no paywalled pieces.
 
 ---
 
@@ -361,7 +364,7 @@ uv run ruff check . && uv run mypy app
 
 # Frontend
 cd frontend
-npm test                  # 35 tests
+npm test                  # 42 tests
 npx tsc -b && npx eslint .
 ```
 
@@ -377,12 +380,14 @@ against a fake price fetcher.
 
 **Frontend** covers the formatters, the comparison table, the ticker input and
 portfolio builder (normalization, validation, cap, weights, equalize, remove),
-the URL-state hook (hydrate + mirror for both modes), and the app end-to-end via
-MSW (compare default load, portfolio-mode backtest, calendar-year returns table,
-missing-ticker warning, 422
-shown verbatim with no retry, 502 with retry-and-recover). The Plotly charts are
-mocked because jsdom has no canvas; every other path runs for real. External
-dependencies (yfinance, the network) are never hit in tests.
+the holdings table (weight-vs-risk divergence flags), the benchmark-metrics and
+calendar-year panels, the ⌘K command palette (mode switch, presets, range, share,
+filtering), the URL-state hook (hydrate + mirror for both modes), and the app
+end-to-end via MSW (compare default load, portfolio-mode backtest, ⌘K shortcut,
+missing-ticker warning, 422 shown verbatim with no retry, 502 with
+retry-and-recover). The Plotly charts are mocked because jsdom has no canvas;
+every other path runs for real. External dependencies (yfinance, the network)
+are never hit in tests.
 
 ---
 
@@ -446,23 +451,23 @@ In roughly the order I'd tackle them:
     │   ├── App.tsx             # mode toggle + compare/portfolio routing
     │   ├── index.css           # Tailwind + Linear design tokens
     │   ├── types.ts
-    │   ├── lib/utils.ts        # cn() class-merge helper
+    │   ├── lib/                # utils (cn helper), presets (ticker/range)
     │   ├── api/                # client.ts, compare.ts, portfolio.ts
     │   ├── hooks/              # useComparison, usePortfolio, useUrlState
     │   ├── utils/              # stats, palette, chartTheme (Plotly colors)
     │   └── components/
-    │       ├── ui/             # shadcn primitives (button, card, table, …)
+    │       ├── ui/             # shadcn primitives (button, card, table, command, dialog, …)
     │       ├── TickerInput.tsx        PortfolioBuilder.tsx
     │       ├── DateRangePicker.tsx    GrowthChart.tsx
     │       ├── ComparisonTable.tsx    HoldingsTable.tsx
     │       ├── CorrelationHeatmap.tsx AnnualReturns.tsx
-    │       ├── BenchmarkMetricsPanel.tsx
+    │       ├── BenchmarkMetricsPanel.tsx  CommandPalette.tsx
     │       ├── CompareResults.tsx     PortfolioResults.tsx
     │       ├── WindowCaption.tsx
     │       └── LoadingState.tsx       ErrorState.tsx
     └── tests/
         ├── setup.ts  test-utils.tsx  mocks/{server,handlers}.ts
-        ├── components/{App,ComparisonTable,TickerInput,PortfolioBuilder,AnnualReturns,BenchmarkMetricsPanel,HoldingsTable}.test.tsx
+        ├── components/{App,ComparisonTable,TickerInput,PortfolioBuilder,AnnualReturns,BenchmarkMetricsPanel,HoldingsTable,CommandPalette}.test.tsx
         ├── hooks/useUrlState.test.ts
         └── utils/stats.test.ts
 ```

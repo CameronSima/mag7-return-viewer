@@ -37,6 +37,22 @@ describe("App", () => {
     expect(screen.getByText(/common window/i)).toBeInTheDocument();
   });
 
+  it("opens the command palette on ⌘K and runs a command", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<App />);
+    await screen.findByText("Risk & return"); // wait for first load
+
+    await user.keyboard("{Meta>}k{/Meta}");
+    const input = await screen.findByPlaceholderText(/type a command or search/i);
+    expect(input).toBeInTheDocument();
+
+    // Running "Switch to Portfolio" routes to portfolio results.
+    await user.click(screen.getByText("Switch to Portfolio"));
+    await waitFor(() => {
+      expect(screen.getByText("Contribution")).toBeInTheDocument();
+    });
+  });
+
   it("surfaces tickers with no data as a warning", async () => {
     server.use(
       http.get("/api/compare", () =>

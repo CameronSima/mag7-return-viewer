@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { format, subYears } from "date-fns";
-import { Share2 } from "lucide-react";
+import { Command, Share2 } from "lucide-react";
 import { DateRangePicker } from "./components/DateRangePicker";
 import { TickerInput } from "./components/TickerInput";
 import { PortfolioBuilder } from "./components/PortfolioBuilder";
 import { CompareResults } from "./components/CompareResults";
 import { PortfolioResults } from "./components/PortfolioResults";
+import { CommandPalette } from "./components/CommandPalette";
 import { LoadingState } from "./components/LoadingState";
 import { ErrorState } from "./components/ErrorState";
 import { Button } from "./components/ui/button";
@@ -15,6 +16,7 @@ import { useComparison } from "./hooks/useComparison";
 import { usePortfolio } from "./hooks/usePortfolio";
 import { useUrlState, type AppMode } from "./hooks/useUrlState";
 import { ApiError } from "./api/client";
+import { PRESETS } from "./lib/presets";
 import { MAX_COMPARE_TICKERS } from "./types";
 
 // Defaults so a bare visit shows something compelling immediately.
@@ -26,13 +28,6 @@ const DEFAULT_HOLDINGS = [
 ];
 const DEFAULT_START = format(subYears(new Date(), 5), "yyyy-MM-dd");
 const DEFAULT_END = format(new Date(), "yyyy-MM-dd");
-
-// Quick-set presets for compare mode.
-const PRESETS: { label: string; tickers: string[] }[] = [
-  { label: "MAG7", tickers: ["MSFT", "AAPL", "GOOGL", "AMZN", "NVDA", "META", "TSLA"] },
-  { label: "MAG7 vs S&P 500", tickers: ["MSFT", "AAPL", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "SPY"] },
-  { label: "Index battle", tickers: ["SPY", "QQQ", "DIA", "IWM"] },
-];
 
 /**
  * Root view. Holds the shared state (mode, tickers/holdings, date range) in the
@@ -50,6 +45,19 @@ export default function App() {
     end: DEFAULT_END,
   });
   const [copied, setCopied] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // ⌘K / Ctrl+K toggles the command palette from anywhere.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setPaletteOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const isCompare = state.mode === "compare";
 
@@ -88,17 +96,29 @@ export default function App() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
-      <header className="mb-6">
-        <Badge variant="accent" className="mb-3">
-          Free · no sign-up
-        </Badge>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Stock Comparison
-        </h1>
-        <p className="mt-2 max-w-2xl text-[0.95rem] leading-relaxed text-muted-foreground">
-          Compare any stocks or ETFs, or backtest a weighted portfolio — growth,
-          risk, and correlation, side by side. Every view is a shareable link.
-        </p>
+      <header className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <Badge variant="accent" className="mb-3">
+            Free · no sign-up
+          </Badge>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            Stock Comparison
+          </h1>
+          <p className="mt-2 max-w-2xl text-[0.95rem] leading-relaxed text-muted-foreground">
+            Compare any stocks or ETFs, or backtest a weighted portfolio —
+            growth, risk, and correlation, side by side. Every view is a
+            shareable link.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setPaletteOpen(true)}
+          className="shrink-0 gap-2 text-muted-foreground"
+          aria-label="Open command palette">
+          <Command className="size-3.5" />
+          <kbd className="hidden font-sans text-xs sm:inline">⌘K</kbd>
+        </Button>
       </header>
 
       <ToggleGroup
@@ -186,6 +206,14 @@ export default function App() {
           <PortfolioResults data={portfolioQuery.data} />
         ) : null}
       </div>
+
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        state={state}
+        setState={setState}
+        onShare={handleShare}
+      />
     </div>
   );
 }
