@@ -4,6 +4,7 @@ import type { CompareResponse } from "@/types";
 import { GrowthChart } from "./GrowthChart";
 import { ComparisonTable } from "./ComparisonTable";
 import { CorrelationHeatmap } from "./CorrelationHeatmap";
+import { RollingCharts } from "./RollingCharts";
 import { Alert, AlertDescription } from "./ui/alert";
 import { WindowCaption } from "./WindowCaption";
 import { Reveal } from "./Reveal";
@@ -51,6 +52,11 @@ export function CompareResults({ data, tickers }: CompareResultsProps) {
       {data.correlation.tickers.length >= 2 && (
         <Reveal index={4}>
           <CorrelationHeatmap correlation={data.correlation} />
+        </Reveal>
+      )}
+      {Object.keys(data.rolling.volatility).length > 0 && (
+        <Reveal index={5}>
+          <RollingCharts rolling={data.rolling} order={tickers} />
         </Reveal>
       )}
     </div>

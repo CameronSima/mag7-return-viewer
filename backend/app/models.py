@@ -129,6 +129,21 @@ class CorrelationMatrix(BaseModel):
     matrix: list[list[float]]
 
 
+class RollingBlock(BaseModel):
+    """Rolling-window time series for the regime-change views.
+
+    ``volatility`` is annualized rolling volatility per series; ``correlation``
+    is each non-reference series' rolling correlation against ``reference`` (the
+    first series). Both are empty when the range is shorter than the window.
+    Series share the {date, value} shape of growth points.
+    """
+
+    window: int
+    volatility: dict[str, list[GrowthPoint]]
+    correlation: dict[str, list[GrowthPoint]]
+    reference: str | None
+
+
 class CompareWindow(BaseModel):
     """The effective comparison window — the overlap of the requested tickers'
     histories. ``start``/``end`` are null only when there is no overlap."""
@@ -147,6 +162,7 @@ class CompareResponse(BaseModel):
     growth: dict[str, list[GrowthPoint]]
     stats: dict[str, CompareStats]
     correlation: CorrelationMatrix
+    rolling: RollingBlock
     window: CompareWindow
     # Tickers the upstream returned no data for. Reported, not fatal — the rest
     # still render. Lets the UI flag, e.g., a typo'd symbol.
@@ -235,6 +251,7 @@ class PortfolioResponse(BaseModel):
     growth: dict[str, list[GrowthPoint]]
     stats: dict[str, CompareStats]
     correlation: CorrelationMatrix
+    rolling: RollingBlock
     window: CompareWindow
     holdings: list[Holding]
     annual: list[AnnualReturn]

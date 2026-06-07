@@ -362,6 +362,65 @@ def compute_benchmark_metrics(
     }
 
 
+def compute_rolling_volatility(
+    aligned_prices: pd.DataFrame,
+    window: int,
+    trading_days_per_year: int,
+    max_points: int,
+) -> dict[str, list[GrowthPointDict]]:
+    """Annualized volatility over a trailing ``window`` of daily returns, per
+    series, as a time series. Reveals when risk spiked or calmed — detail a
+    single window-wide volatility number averages away. Empty when the window
+    has too little history to produce even one point. Long series are LTTB-thinned.
+    """
+    out: dict[str, list[GrowthPointDict]] = {}
+    if aligned_prices.empty or len(aligned_prices) < window + 1:
+        return out
+
+    daily = aligned_prices.pct_change(fill_method=None)
+    rolling = daily.rolling(window).std() * sqrt(trading_days_per_year)
+    for column in aligned_prices.columns:
+        series = rolling[column].dropna()
+        points: list[GrowthPointDict] = [
+            {"date": _format_date(idx), "value": float(value)}
+            for idx, value in series.items()
+        ]
+        if points:
+            out[str(column)] = _downsample_growth(points, max_points)
+    return out
+
+
+def compute_rolling_correlation(
+    aligned_prices: pd.DataFrame,
+    window: int,
+    max_points: int,
+) -> tuple[str | None, dict[str, list[GrowthPointDict]]]:
+    """Rolling correlation of each series against a reference (the first column)
+    over a trailing ``window``. Returns ``(reference, series_by_ticker)``; the
+    reference is None (and the map empty) when there's fewer than two series or
+    too little history. Shows when diversification broke down — pairs that
+    normally diverge moving together in a crisis.
+    """
+    columns = list(aligned_prices.columns)
+    if len(columns) < 2 or len(aligned_prices) < window + 1:
+        return None, {}
+
+    reference = str(columns[0])
+    daily = aligned_prices.pct_change(fill_method=None)
+    ref_returns = daily[columns[0]]
+
+    series: dict[str, list[GrowthPointDict]] = {}
+    for column in columns[1:]:
+        rolling_corr = daily[column].rolling(window).corr(ref_returns).dropna()
+        points: list[GrowthPointDict] = [
+            {"date": _format_date(idx), "value": _finite(float(value))}
+            for idx, value in rolling_corr.items()
+        ]
+        if points:
+            series[str(column)] = _downsample_growth(points, max_points)
+    return reference, series
+
+
 def compute_correlation(aligned_prices: pd.DataFrame) -> CorrelationDict:
     """Pairwise daily-return correlation across the common window."""
     if aligned_prices.empty:

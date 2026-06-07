@@ -78,6 +78,9 @@ change the range, hit **Share link**. API docs are auto-generated at
   max drawdown, best/worst day, and trading-day count per ticker. Sortable.
 - **Return correlation** — a heatmap of pairwise daily-return correlations, so
   diversifiers (low/negative correlation) stand out from names that move together.
+- **Rolling views** — annualized volatility and correlation over a trailing
+  63-day window, plotted over time, so a vol spike or a correlation breakdown
+  (diversification failing in a crisis) shows up instead of being averaged away.
 
 Plus quick presets (MAG7, MAG7 vs. S&P 500, the index ETFs), a warning when a
 typo'd symbol has no data, the shareable URL, and a **⌘K command palette** for
@@ -96,6 +99,8 @@ switching modes, applying a preset, or setting a date range from the keyboard.
   and a **holdings breakdown** shows each name's weight, **share of portfolio
   risk** (which can diverge from weight — flagging concentration), total return,
   and weighted contribution.
+- **Rolling views** — the portfolio's (and benchmark's) trailing-window
+  volatility over time, plus the rolling portfolio-vs-benchmark correlation.
 
 Weights are entered raw and shown normalized to 100%; an "Equal weight" button
 balances them. A dropped (no-data) holding renormalizes the rest.
@@ -255,12 +260,20 @@ Query params: `tickers` (comma-separated, e.g. `AAPL,MSFT,SPY`; 1–10),
     }
   },
   "correlation": { "tickers": ["AAPL", "SPY"], "matrix": [[1.0, 0.78], [0.78, 1.0]] },
+  "rolling": {
+    "window": 63,
+    "volatility": { "AAPL": [{ "date": "2020-09-10", "value": 0.41 }] },
+    "correlation": { "SPY": [{ "date": "2020-09-10", "value": 0.74 }] },
+    "reference": "AAPL"
+  },
   "window": { "start": "2020-06-08", "end": "2025-06-06", "trading_days": 1258 },
   "missing": []
 }
 ```
 
-All values are fractions (`0.28` == +28%). `tickers` are normalized server-side
+All values are fractions (`0.28` == +28%). `rolling` is a trailing 63-day
+(≈ one quarter) view — annualized volatility per ticker and each ticker's rolling
+correlation against the first; empty when the range is shorter than the window. `tickers` are normalized server-side
 (uppercased, deduped). A range with no trading data, or tickers whose histories
 don't overlap, returns a **422** with a clear message; a genuine upstream
 failure returns a **502** (so the UI offers retry only when retrying could help).
@@ -373,12 +386,12 @@ never shows garbage.
 ```bash
 # Backend
 cd backend
-uv run pytest -v          # 67 tests
+uv run pytest -v          # 71 tests
 uv run ruff check . && uv run mypy app
 
 # Frontend
 cd frontend
-npm test                  # 55 tests
+npm test                  # 58 tests
 npx tsc -b && npx eslint .
 ```
 
@@ -387,7 +400,8 @@ CAGR/vol/Sharpe, max drawdown, correlation, degenerate inputs, downsampling, and
 the portfolio simulation incl. rebalancing vs. buy-and-hold), calendar-year chaining + partial-year flagging, benchmark-relative metrics
 (beta/alpha/R²/tracking error/information ratio), risk-contribution decomposition
 (equal split for uncorrelated equal-vol holdings, concentration in the volatile
-one), the cache, and all endpoints
+one), rolling volatility/correlation (regime-change detection, short-range
+guards), the cache, and all endpoints
 end-to-end (happy path, ticker/weight normalization & validation, missing-holding
 renormalization, no-overlap → 422, no-data → 422, upstream → 502, cache hits)
 against a fake price fetcher.
@@ -398,7 +412,8 @@ the holdings table (weight-vs-risk divergence flags), the benchmark-metrics and
 calendar-year panels, the ⌘K command palette (mode switch, presets, range, share,
 filtering), the staggered reveal (stagger + reduced-motion opt-out), the
 SEO helpers (titles, slugs, the document-head hook, `__SEO_STATE__` hydration),
-the URL-state hook (hydrate + mirror for both modes), and the app
+the rolling-views charts (vol + correlation, short-range opt-out), the URL-state
+hook (hydrate + mirror for both modes), and the app
 end-to-end via MSW (compare default load, portfolio-mode backtest, ⌘K shortcut,
 missing-ticker warning, 422 shown verbatim with no retry, 502 with
 retry-and-recover). The Plotly charts are mocked because jsdom has no canvas;
@@ -419,14 +434,14 @@ In roughly the order I'd tackle them:
    What's left: validate keywords with a tool, grow the seed list, generate OG
    images, and add on-demand SSR for the unbounded tail. Research + checklist in
    [`docs/seo.md`](docs/seo.md).
-3. **Rolling views** — rolling correlation and rolling volatility, for when a
-   single window-wide number hides a regime change.
-4. **Redis cache** behind the existing `Cache` protocol (no call-site changes).
-5. **Symbol search/validation** — resolve and disambiguate tickers as the user
+3. **Redis cache** behind the existing `Cache` protocol (no call-site changes).
+4. **Symbol search/validation** — resolve and disambiguate tickers as the user
    types, instead of discovering a typo only after the request.
-6. **Configuration via `pydantic-settings`** sourced from the environment.
-7. **CI** (GitHub Actions): pytest + ruff + mypy; vitest + tsc + eslint.
-8. **Risk-free input** for an excess-return Sharpe, for users who want it.
+5. **Configuration via `pydantic-settings`** sourced from the environment.
+6. **CI** (GitHub Actions): pytest + ruff + mypy; vitest + tsc + eslint.
+7. **Risk-free input** for an excess-return Sharpe, for users who want it.
+8. **Selectable rolling window** (30/63/126/252d) — the rolling views ship at a
+   fixed 63-day window; a selector would refetch with the chosen span.
 
 ---
 
@@ -479,13 +494,14 @@ In roughly the order I'd tackle them:
     │       ├── DateRangePicker.tsx    GrowthChart.tsx
     │       ├── ComparisonTable.tsx    HoldingsTable.tsx
     │       ├── CorrelationHeatmap.tsx AnnualReturns.tsx
+    │       ├── RollingCharts.tsx
     │       ├── BenchmarkMetricsPanel.tsx  CommandPalette.tsx
     │       ├── CompareResults.tsx     PortfolioResults.tsx
     │       ├── WindowCaption.tsx      Reveal.tsx
     │       └── LoadingState.tsx       ErrorState.tsx
     └── tests/
         ├── setup.ts  test-utils.tsx  mocks/{server,handlers}.ts
-        ├── components/{App,ComparisonTable,TickerInput,PortfolioBuilder,AnnualReturns,BenchmarkMetricsPanel,HoldingsTable,CommandPalette,Reveal}.test.tsx
+        ├── components/{App,ComparisonTable,TickerInput,PortfolioBuilder,AnnualReturns,BenchmarkMetricsPanel,HoldingsTable,CommandPalette,Reveal,RollingCharts}.test.tsx
         ├── hooks/{useUrlState,useDocumentMeta}.test.tsx
         ├── lib/seo.test.ts
         └── utils/stats.test.ts

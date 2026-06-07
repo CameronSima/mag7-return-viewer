@@ -47,6 +47,26 @@ export const sampleCompareResponse: CompareResponse = {
       [0.6, 1.0],
     ],
   },
+  rolling: {
+    window: 63,
+    volatility: {
+      AAPL: [
+        { date: "2024-01-02", value: 0.22 },
+        { date: "2024-01-03", value: 0.28 },
+      ],
+      MSFT: [
+        { date: "2024-01-02", value: 0.18 },
+        { date: "2024-01-03", value: 0.2 },
+      ],
+    },
+    correlation: {
+      MSFT: [
+        { date: "2024-01-02", value: 0.6 },
+        { date: "2024-01-03", value: 0.72 },
+      ],
+    },
+    reference: "AAPL",
+  },
   window: { start: "2024-01-02", end: "2024-01-04", trading_days: 3 },
   missing: [],
 };
@@ -92,6 +112,26 @@ export const samplePortfolioResponse: PortfolioResponse = {
       [1.0, 0.85],
       [0.85, 1.0],
     ],
+  },
+  rolling: {
+    window: 63,
+    volatility: {
+      Portfolio: [
+        { date: "2024-01-02", value: 0.21 },
+        { date: "2024-01-03", value: 0.23 },
+      ],
+      SPY: [
+        { date: "2024-01-02", value: 0.16 },
+        { date: "2024-01-03", value: 0.17 },
+      ],
+    },
+    correlation: {
+      SPY: [
+        { date: "2024-01-02", value: 0.9 },
+        { date: "2024-01-03", value: 0.93 },
+      ],
+    },
+    reference: "Portfolio",
   },
   window: { start: "2024-01-02", end: "2024-01-04", trading_days: 3 },
   holdings: [

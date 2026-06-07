@@ -18,9 +18,10 @@ def test_portfolio_happy_path(client: TestClient) -> None:
     body = response.json()
 
     assert set(body.keys()) == {
-        "growth", "stats", "correlation", "window", "holdings", "annual",
-        "benchmark", "benchmark_metrics", "missing",
+        "growth", "stats", "correlation", "rolling", "window", "holdings",
+        "annual", "benchmark", "benchmark_metrics", "missing",
     }
+    assert body["rolling"]["window"] == 63
     # No benchmark requested -> no benchmark-relative metrics.
     assert body["benchmark_metrics"] is None
     # Calendar-year returns are present and keyed by the series names.

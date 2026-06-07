@@ -74,6 +74,17 @@ export interface CorrelationMatrix {
   matrix: number[][];
 }
 
+/** Rolling-window time series for the regime-change views. `volatility` is
+ *  annualized rolling vol per series; `correlation` is each non-reference
+ *  series' rolling correlation against `reference` (the first series). Both are
+ *  empty when the range is shorter than the window. */
+export interface RollingBlock {
+  window: number;
+  volatility: Record<string, GrowthPoint[]>;
+  correlation: Record<string, GrowthPoint[]>;
+  reference: string | null;
+}
+
 /** The effective comparison window — the overlap of the requested tickers'
  *  histories. `start`/`end` are null only when there is no overlap. */
 export interface CompareWindow {
@@ -87,6 +98,7 @@ export interface CompareResponse {
   growth: Record<string, GrowthPoint[]>;
   stats: Record<string, CompareStats>;
   correlation: CorrelationMatrix;
+  rolling: RollingBlock;
   window: CompareWindow;
   /** Requested tickers the upstream had no data for (e.g. a typo). */
   missing: string[];
@@ -147,6 +159,7 @@ export interface PortfolioResponse {
   growth: Record<string, GrowthPoint[]>;
   stats: Record<string, CompareStats>;
   correlation: CorrelationMatrix;
+  rolling: RollingBlock;
   window: CompareWindow;
   holdings: Holding[];
   annual: AnnualReturn[];

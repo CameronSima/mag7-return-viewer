@@ -12,13 +12,15 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import ValidationError
 
-from app.config import MAX_CHART_POINTS, TRADING_DAYS_PER_YEAR
+from app.config import MAX_CHART_POINTS, ROLLING_WINDOW, TRADING_DAYS_PER_YEAR
 from app.dependencies import get_compare_cache, get_price_fetcher
 from app.models import CompareQuery, CompareResponse
 from app.services.analytics import (
     compute_comparison_stats,
     compute_correlation,
     compute_growth,
+    compute_rolling_correlation,
+    compute_rolling_volatility,
     describe_window,
     restrict_to_common_window,
 )
@@ -105,10 +107,21 @@ def get_compare(
             "this range. Try a different range or ticker set.",
         )
 
+    rolling_reference, rolling_corr = compute_rolling_correlation(
+        aligned, ROLLING_WINDOW, MAX_CHART_POINTS
+    )
     payload: CachedPayload = {
         "growth": compute_growth(aligned, MAX_CHART_POINTS),
         "stats": compute_comparison_stats(aligned, TRADING_DAYS_PER_YEAR),
         "correlation": compute_correlation(aligned),
+        "rolling": {
+            "window": ROLLING_WINDOW,
+            "volatility": compute_rolling_volatility(
+                aligned, ROLLING_WINDOW, TRADING_DAYS_PER_YEAR, MAX_CHART_POINTS
+            ),
+            "correlation": rolling_corr,
+            "reference": rolling_reference,
+        },
         "window": describe_window(aligned),
         "missing": missing,
     }

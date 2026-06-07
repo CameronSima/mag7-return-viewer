@@ -7,6 +7,7 @@ import { CorrelationHeatmap } from "./CorrelationHeatmap";
 import { HoldingsTable } from "./HoldingsTable";
 import { AnnualReturns } from "./AnnualReturns";
 import { BenchmarkMetricsPanel } from "./BenchmarkMetricsPanel";
+import { RollingCharts } from "./RollingCharts";
 import { Alert, AlertDescription } from "./ui/alert";
 import { WindowCaption } from "./WindowCaption";
 import { Reveal } from "./Reveal";
@@ -72,6 +73,11 @@ export function PortfolioResults({ data }: PortfolioResultsProps) {
       {data.correlation.tickers.length >= 2 && (
         <Reveal index={7}>
           <CorrelationHeatmap correlation={data.correlation} />
+        </Reveal>
+      )}
+      {Object.keys(data.rolling.volatility).length > 0 && (
+        <Reveal index={8}>
+          <RollingCharts rolling={data.rolling} order={order} />
         </Reveal>
       )}
     </div>

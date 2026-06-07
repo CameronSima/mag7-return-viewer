@@ -11,6 +11,8 @@ from app.services.analytics import (
     compute_correlation,
     compute_growth,
     compute_risk_contributions,
+    compute_rolling_correlation,
+    compute_rolling_volatility,
     describe_window,
     restrict_to_common_window,
     simulate_portfolio_value,
@@ -27,6 +29,11 @@ def _prices_from_returns(returns: list[float], start: float = 100.0) -> list[flo
 def _frame(data: dict[str, list[float]], dates: list[str]) -> pd.DataFrame:
     idx = pd.Index(pd.to_datetime(dates).date, name="date")
     return pd.DataFrame(data, index=idx)
+
+
+def _trading_days(n: int) -> list[str]:
+    """N consecutive business days as ISO strings."""
+    return list(pd.date_range("2020-01-01", periods=n, freq="B").strftime("%Y-%m-%d"))
 
 
 def test_restrict_to_common_window_intersects_histories() -> None:
@@ -395,3 +402,48 @@ def test_risk_contributions_zero_variance_is_zeros() -> None:
 
 def test_risk_contributions_empty_frame() -> None:
     assert compute_risk_contributions(pd.DataFrame(), {}) == {}
+
+
+def test_rolling_volatility_tracks_a_changing_regime() -> None:
+    """A calm stretch then a volatile stretch yields a rolling-vol series that
+    rises — the regime change a single number would average away."""
+    calm = [0.001, -0.001] * 6  # 12 small returns
+    wild = [0.05, -0.05] * 6  # 12 large returns
+    prices = _frame({"AAA": _prices_from_returns(calm + wild)}, _trading_days(25))
+    out = compute_rolling_volatility(prices, window=5, trading_days_per_year=252, max_points=2000)
+
+    assert "AAA" in out
+    values = [p["value"] for p in out["AAA"]]
+    assert values[0] < values[-1]  # vol rose into the volatile regime
+    assert all(v >= 0 for v in values)
+
+
+def test_rolling_volatility_empty_when_range_too_short() -> None:
+    prices = _frame({"AAA": [100.0, 101.0, 102.0]}, _trading_days(3))
+    out = compute_rolling_volatility(
+        prices, window=5, trading_days_per_year=252, max_points=2000
+    )
+    assert out == {}
+
+
+def test_rolling_correlation_of_comoving_series_is_near_one() -> None:
+    """Two series with identical return paths correlate near 1.0 in every
+    window; the reference is the first column and the series is keyed by the
+    second."""
+    returns = [0.01, -0.02, 0.015, -0.01, 0.02, -0.005, 0.01, -0.015]
+    path = _prices_from_returns(returns)
+    prices = _frame({"AAA": path, "BBB": [p * 2 for p in path]}, _trading_days(len(path)))
+
+    reference, series = compute_rolling_correlation(prices, window=4, max_points=2000)
+
+    assert reference == "AAA"
+    assert set(series) == {"BBB"}
+    assert all(p["value"] == pytest.approx(1.0, abs=1e-6) for p in series["BBB"])
+
+
+def test_rolling_correlation_empty_for_single_series() -> None:
+    prices = _frame(
+        {"AAA": _prices_from_returns([0.01, -0.01, 0.02, -0.02, 0.01, -0.01])},
+        _trading_days(7),
+    )
+    assert compute_rolling_correlation(prices, window=3, max_points=2000) == (None, {})

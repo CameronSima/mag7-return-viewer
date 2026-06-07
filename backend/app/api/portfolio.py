@@ -12,7 +12,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import ValidationError
 
-from app.config import MAX_CHART_POINTS, TRADING_DAYS_PER_YEAR
+from app.config import MAX_CHART_POINTS, ROLLING_WINDOW, TRADING_DAYS_PER_YEAR
 from app.dependencies import get_portfolio_cache, get_price_fetcher
 from app.models import PortfolioQuery, PortfolioResponse, RebalanceFreq
 from app.services.analytics import (
@@ -22,6 +22,8 @@ from app.services.analytics import (
     compute_correlation,
     compute_growth,
     compute_risk_contributions,
+    compute_rolling_correlation,
+    compute_rolling_volatility,
     describe_window,
     restrict_to_common_window,
     simulate_portfolio_value,
@@ -149,10 +151,23 @@ def get_portfolio(
         for t in present_holdings
     ]
 
+    # Rolling views run on the combined frame; "Portfolio" is its first column,
+    # so the rolling correlation is benchmark-vs-portfolio.
+    rolling_reference, rolling_corr = compute_rolling_correlation(
+        combined, ROLLING_WINDOW, MAX_CHART_POINTS
+    )
     payload: CachedPayload = {
         "growth": compute_growth(combined, MAX_CHART_POINTS),
         "stats": compute_comparison_stats(combined, TRADING_DAYS_PER_YEAR),
         "correlation": compute_correlation(combined),
+        "rolling": {
+            "window": ROLLING_WINDOW,
+            "volatility": compute_rolling_volatility(
+                combined, ROLLING_WINDOW, TRADING_DAYS_PER_YEAR, MAX_CHART_POINTS
+            ),
+            "correlation": rolling_corr,
+            "reference": rolling_reference,
+        },
         "window": describe_window(combined),
         "holdings": holdings,
         "annual": compute_annual_returns(combined),

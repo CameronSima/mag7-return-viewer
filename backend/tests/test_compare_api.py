@@ -11,7 +11,14 @@ def test_compare_happy_path(client: TestClient) -> None:
     assert response.status_code == 200
     body = response.json()
 
-    assert set(body.keys()) == {"growth", "stats", "correlation", "window", "missing"}
+    assert set(body.keys()) == {
+        "growth", "stats", "correlation", "rolling", "window", "missing",
+    }
+    # The 5-day window is far shorter than the rolling window, so the rolling
+    # series are empty but the block is present and well-formed.
+    assert set(body["rolling"].keys()) == {
+        "window", "volatility", "correlation", "reference",
+    }
     assert set(body["growth"].keys()) == {"MSFT", "AAPL"}
     # Growth curves are rebased to 1.0 at the common start.
     assert body["growth"]["MSFT"][0]["value"] == 1.0
