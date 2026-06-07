@@ -1,0 +1,59 @@
+# Production stack for the MAG7 return viewer: one app container (FastAPI serves
+# both the API and the built SPA) plus Redis (shared cache).
+#
+#   reverse proxy (Coolify/Traefik)  ──▶  app (uvicorn: API + static)  ──▶  redis
+#         TLS / HTTP-2 / routing            FastAPI, N workers              cache
+#
+# Local:    docker compose up --build -d   then open http://localhost:${HTTP_PORT:-8080}
+# Coolify:  point it at this compose file; it provides the edge proxy + TLS and
+#           maps a domain to the app service's port 8000.
+
+name: mag7-return-viewer
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        # Baked into prerendered SEO pages + sitemap at build time.
+        VITE_SITE_URL: ${VITE_SITE_URL:-http://localhost:8080}
+    restart: unless-stopped
+    environment:
+      # Shared cache so every uvicorn worker (and replica) hits the same entries.
+      REDIS_URL: redis://redis:6379/0
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      STATIC_DIR: /app/static
+      # SPA is served same-origin, so CORS isn't exercised; set this only if you
+      # expose the API to a browser on a different origin.
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "${HTTP_PORT:-8080}:8000"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Cap memory and evict least-recently-used keys when full — the cache is
+    # disposable, so LRU is the right policy. Light persistence avoids a full
+    # cold start on restart.
+    command:
+      - redis-server
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --save
+      - "60"
+      - "100"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  redis-data:

@@ -27,6 +27,7 @@ borders, an indigo accent, crisp typography.
 ## Table of contents
 
 - [Quick start](#quick-start)
+- [Production (Docker)](#production-docker)
 - [What it does](#what-it-does)
 - [Architecture](#architecture)
 - [Key decisions](#key-decisions)
@@ -64,6 +65,61 @@ Open [http://localhost:5173](http://localhost:5173). It loads with a default
 comparison (the leaders vs. the S&P 500 over five years). Add or remove tickers,
 change the range, hit **Share link**. API docs are auto-generated at
 [http://localhost:8000/docs](http://localhost:8000/docs).
+
+---
+
+## Production (Docker)
+
+The whole stack runs with one command. `docker compose` builds two services and
+wires them together:
+
+```bash
+cp .env.example .env          # optional — tweak ports / canonical URL
+docker compose up --build -d
+```
+
+Then open **http://localhost:8080** (override with `HTTP_PORT`).
+
+```
+                  ┌──────────────────────────────────────────────────────┐
+  reverse proxy   │                       app                             │
+  (TLS, HTTP/2) ──▶  FastAPI / uvicorn — serves the API *and* the built  │──▶ redis
+                  │  SPA + prerendered SEO pages (N workers)             │   shared cache
+                  └──────────────────────────────────────────────────────┘
+```
+
+- **`app`** — one multi-stage image: a `node` stage builds the SPA and the
+  build-time SEO pages, a `uv` stage resolves backend deps against the pinned
+  `uv.lock`, and a slim non-root runtime stage runs uvicorn. The same process
+  serves the JSON API **and** the static frontend — content-hashed assets get an
+  immutable long cache, the HTML shell is never cached, prerendered pages at
+  `/compare/<slug>/index.html` are served as-is, and unknown paths fall back to
+  the SPA shell. Responses are gzipped. Because it's one origin, there's **no
+  CORS in production**.
+- **`redis`** — the shared price/stats cache. Because the cache lives in Redis
+  rather than each worker's memory, all workers (and future replicas) share one
+  warm cache instead of `N` cold ones. Memory is capped with an `allkeys-lru`
+  eviction policy and lightly persisted to a named volume.
+
+**Why no separate web server?** A platform reverse proxy (here, Coolify's
+Traefik) already terminates TLS and handles HTTP/2 and routing at the edge, so a
+dedicated nginx/Caddy just to serve static files would be redundant. Starlette's
+`StaticFiles`/`FileResponse` serve the build efficiently behind it. The browser
+calls the API under `/api`; the app strips that prefix before routing (the
+production equivalent of the Vite dev proxy), so the client is identical in both
+environments and the routers stay mounted at the root (`/compare`, `/returns`, …).
+
+The cache backend is selected at runtime: when `REDIS_URL` is set (as it is in
+compose) the app uses Redis; unset (as in local dev and tests) it falls back to
+the in-memory TTL cache. Both implement the same `Cache` protocol, so endpoint
+code is identical either way. Configuration (`HTTP_PORT`, `VITE_SITE_URL`,
+`WEB_CONCURRENCY`, `CORS_ORIGINS`) lives in `.env` — see `.env.example`.
+
+**Deploying on Coolify:** point it at this repo's `docker-compose.yml`; it
+builds the image, runs Redis, and maps your domain to the `app` service's port
+8000 (TLS handled for you). Set `VITE_SITE_URL` to your real domain as a build
+arg so the prerendered SEO pages and sitemap carry correct canonical URLs. The
+app defines a `/health` check; Redis has its own, and the app waits for it.
 
 ---
 
@@ -450,19 +506,23 @@ In roughly the order I'd tackle them:
 ```
 .
 ├── README.md
+├── Dockerfile                 # Single image: builds SPA, serves it + API
+├── docker-compose.yml         # app + redis
+├── .env.example               # HTTP_PORT, VITE_SITE_URL, WEB_CONCURRENCY, …
 ├── backend/
 │   ├── pyproject.toml
 │   ├── app/
-│   │   ├── main.py            # FastAPI app, CORS, router mounting
-│   │   ├── config.py          # Constants (tickers, cache, caps, 252)
+│   │   ├── main.py            # FastAPI app, CORS, /api strip, router mounting
+│   │   ├── static.py          # Serve the built SPA + SEO pages (prod)
+│   │   ├── config.py          # Constants + env (tickers, cache, REDIS_URL, …)
 │   │   ├── models.py          # Pydantic models / wire contracts
-│   │   ├── dependencies.py    # DI providers (per-endpoint caches, fetcher)
+│   │   ├── dependencies.py    # DI providers (caches: Redis or in-memory)
 │   │   ├── api/
 │   │   │   ├── returns.py     # GET /returns (original MAG7 daily returns)
 │   │   │   ├── compare.py     # GET /compare (the comparison engine)
 │   │   │   └── portfolio.py   # GET /portfolio (the portfolio backtester)
 │   │   └── services/
-│   │       ├── cache.py       # TTL cache + protocol
+│   │       ├── cache.py       # TTL cache protocol + in-memory & Redis backends
 │   │       ├── prices.py      # yfinance wrapper + protocol
 │   │       ├── returns.py     # Daily-returns math + LTTB downsampling
 │   │       └── analytics.py   # Growth, stats, correlation, portfolio sim

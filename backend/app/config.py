@@ -4,6 +4,7 @@ Centralized here so they're easy to override (env vars, future settings file)
 and easy to find when adding new tickers or tuning cache behavior.
 """
 
+import os
 from typing import Final
 
 # The MAG7 tickers, ordered as commonly presented in financial media.
@@ -48,3 +49,19 @@ TRADING_DAYS_PER_YEAR: Final[int] = 252
 # shifts (a vol spike, a correlation breakdown) that a single window-wide number
 # averages away.
 ROLLING_WINDOW: Final[int] = 63
+
+# ---- Deployment-driven settings (env vars) ----------------------------------
+# These are read from the environment so the same image runs in dev and prod.
+
+# Redis connection URL (e.g. "redis://redis:6379/0"). When unset, the app falls
+# back to the in-memory cache — handy for local runs and tests with no Redis.
+REDIS_URL: Final[str | None] = os.getenv("REDIS_URL") or None
+
+# Allowed CORS origins, comma-separated. In the Docker setup the frontend is
+# served same-origin (nginx proxies /api), so CORS isn't exercised; this keeps
+# the standalone Vite dev server working and lets prod lock down the origin.
+CORS_ORIGINS: Final[tuple[str, ...]] = tuple(
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+    if origin.strip()
+)

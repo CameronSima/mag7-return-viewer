@@ -1,0 +1,25 @@
+# Keep the build context small and reproducible. The image installs deps from
+# the lockfiles and builds the frontend fresh, so local installs/outputs and
+# tooling caches are excluded.
+.git/
+**/.venv/
+**/venv/
+**/node_modules/
+**/dist/
+**/dist-ssr/
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.coverage
+**/.coverage.*
+**/htmlcov/
+**/*.tsbuildinfo
+**/*.log
+**/.DS_Store
+**/.env
+**/.env.*
+!**/.env.example
+*.md
+docs/

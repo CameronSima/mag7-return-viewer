@@ -15,12 +15,13 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // Proxy API calls to the FastAPI backend in dev so we don't have to
-      // worry about CORS or hardcoding origins in the client.
+      // Proxy API calls to the FastAPI backend in dev so we don't have to worry
+      // about CORS or hardcoding origins in the client. The /api prefix is kept
+      // and handled by the backend (it strips it before routing), so dev and the
+      // bundled single-origin deployment behave identically.
       "/api": {
         target: "http://localhost:8000",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ""),
       },
     },
   },
