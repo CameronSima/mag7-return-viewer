@@ -36,4 +36,14 @@ export default defineConfig([
       'react-refresh/only-export-components': 'off',
     },
   },
+  {
+    // Build tooling runs under Node (via tsx), not the browser/Fast Refresh model.
+    files: ['scripts/**/*.{ts,mts}'],
+    languageOptions: {
+      globals: globals.node,
+    },
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

@@ -66,19 +66,33 @@ tail at near-zero marginal cost:
 HTML these routes need SSR or static pre-rendering (build-time generation or an
 SSR layer). That's the prerequisite for the whole programmatic play.
 
-## TODOs
+## Status
+
+Shipped (build-time static pre-render — no SSR server needed):
+
+- [x] Dynamic `<head>` per selection — `src/hooks/useDocumentMeta.ts` sets the
+      title, meta description, canonical (the clean `/compare/<slug>/` URL), and
+      OG/Twitter tags from app state. Logic in the dependency-free `src/lib/seo.ts`.
+- [x] Templated SEO copy for compare pages (title, meta, H1, intro sentence).
+- [x] Seed list of high-value combos (`SEED_COMPARISONS`) statically pre-built
+      by `scripts/generate-seo-pages.ts` (runs after `vite build`). Each page
+      overrides the head, injects `window.__SEO_STATE__` so the SPA boots into
+      that comparison, and ships a visible H1 + copy for non-JS crawlers.
+- [x] `sitemap.xml` + `robots.txt` generated, covering the homepage + combos.
+- [x] Open Graph / Twitter card meta (static defaults + per-page overrides).
+- [x] Structured data (`WebApplication` JSON-LD) in `index.html`.
+
+Remaining:
 
 - [ ] Validate the clusters above with a keyword tool; rank by volume × (1 −
       competition). Start with single-metric + free-alternative (lowest comp).
-- [ ] Add per-route SSR/pre-rendering so `/compare` and `/portfolio` URLs serve
-      crawlable HTML with dynamic `<title>`/meta/H1.
-- [ ] Template SEO copy for compare & portfolio routes (title, meta description,
-      H1, one generated intro sentence with the headline number).
-- [ ] Seed list of high-value ticker combos to statically pre-build (top-100
-      pairwise, popular ETF trios, named portfolios).
-- [ ] `sitemap.xml` + `robots.txt` generation covering the pre-built combos.
-- [ ] Open Graph / Twitter card meta so shared links render rich previews.
-- [ ] Structured data (JSON-LD) where applicable.
+- [ ] Scale the seed list (top-N pairwise, more ETF trios, portfolio pages). The
+      generator already handles arbitrary entries — this is just data.
+- [ ] For the *unbounded* tail (any `AAPL vs X` on demand), add real SSR or an
+      on-request pre-render edge function; the static seed covers the head.
+- [ ] Set `VITE_SITE_URL` at build for correct absolute canonicals/sitemap in
+      production (defaults to a placeholder).
+- [ ] Per-page OG **images** (generated cards) for richer social previews.
 
 ## Out of scope (don't target — we don't do these yet)
 

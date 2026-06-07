@@ -4,6 +4,7 @@ import {
   comparePath,
   defaultMeta,
   metaForState,
+  SEED_COMPARISONS,
   tickersFromSlug,
   type SeoInput,
 } from "@/lib/seo";
@@ -54,5 +55,19 @@ describe("slugs", () => {
   it("preserves hyphenated tickers like BRK-B", () => {
     const tickers = ["AAPL", "BRK-B"];
     expect(tickersFromSlug(compareSlug(tickers))).toEqual(tickers);
+  });
+});
+
+describe("SEED_COMPARISONS", () => {
+  it("are all valid (≥2 uppercase tickers) and uniquely slugged", () => {
+    const slugs = new Set<string>();
+    for (const combo of SEED_COMPARISONS) {
+      expect(combo.length).toBeGreaterThanOrEqual(2);
+      for (const ticker of combo) {
+        expect(ticker).toMatch(/^[A-Z0-9.-]{1,12}$/);
+      }
+      slugs.add(compareSlug(combo));
+    }
+    expect(slugs.size).toBe(SEED_COMPARISONS.length);
   });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { useUrlState, type AppState } from "@/hooks/useUrlState";
 
@@ -17,9 +17,31 @@ beforeEach(() => {
 });
 
 describe("useUrlState", () => {
+  afterEach(() => {
+    delete window.__SEO_STATE__;
+  });
+
   it("falls back to defaults when the URL carries no state", () => {
     const { result } = renderHook(() => useUrlState(DEFAULTS));
     expect(result.current[0]).toEqual(DEFAULTS);
+  });
+
+  it("boots from a pre-rendered page's __SEO_STATE__ when the URL is bare", () => {
+    window.__SEO_STATE__ = { mode: "compare", tickers: ["NVDA", "AMD"] };
+    const { result } = renderHook(() => useUrlState(DEFAULTS));
+
+    expect(result.current[0].mode).toBe("compare");
+    expect(result.current[0].tickers).toEqual(["NVDA", "AMD"]);
+    // Untouched fields keep their defaults.
+    expect(result.current[0].start).toBe(DEFAULTS.start);
+  });
+
+  it("lets an explicit query string win over __SEO_STATE__", () => {
+    window.__SEO_STATE__ = { mode: "compare", tickers: ["NVDA", "AMD"] };
+    window.history.replaceState(null, "", "/?tickers=voo,vti");
+    const { result } = renderHook(() => useUrlState(DEFAULTS));
+
+    expect(result.current[0].tickers).toEqual(["VOO", "VTI"]);
   });
 
   it("hydrates compare state from the query string", () => {

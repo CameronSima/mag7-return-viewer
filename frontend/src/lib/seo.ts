@@ -82,6 +82,34 @@ export function comparePath(tickers: string[]): string {
   return `/compare/${compareSlug(tickers)}/`;
 }
 
+/** Visible H1 for a pre-rendered comparison page. */
+export function compareHeadline(tickers: string[]): string {
+  return `${tickers.join(" vs ")} — total return comparison`;
+}
+
+/**
+ * Curated high-value comparisons to statically pre-render at build time — the
+ * seed of the programmatic-SEO long tail. Expanding this list is the only thing
+ * between here and thousands of indexable pages (top-N pairwise, more ETF
+ * trios, named portfolios). Each entry must have at least two tickers.
+ */
+export const SEED_COMPARISONS: string[][] = [
+  ["VOO", "VTI"],
+  ["VOO", "VTI", "SPY"],
+  ["VTI", "VXUS"],
+  ["VOO", "QQQ"],
+  ["QQQ", "SPY"],
+  ["SCHD", "VOO"],
+  ["VUG", "VTV"],
+  ["SPY", "QQQ", "DIA", "IWM"],
+  ["AAPL", "MSFT"],
+  ["NVDA", "AMD"],
+  ["TSLA", "NVDA"],
+  ["AAPL", "MSFT", "GOOGL", "AMZN"],
+  ["MSFT", "AAPL", "GOOGL", "AMZN", "NVDA", "META", "TSLA"],
+  ["BRK-B", "SPY"],
+];
+
 /** Inverse of compareSlug, for the SPA bootstrap on a pre-rendered page. */
 export function tickersFromSlug(slug: string): string[] {
   return slug

@@ -194,6 +194,19 @@ accounts, no database, no router dependency — yet every comparison *and* every
 portfolio is a shareable link, and a bare visit falls back to a sensible default.
 This is the cheapest possible "share" feature: it costs zero backend.
 
+### SEO without an SSR server
+
+A client-rendered SPA is invisible to non-JS crawlers, but a full SSR rewrite is
+overkill here. Instead: at runtime a `useDocumentMeta` hook keeps the `<head>`
+(title, description, canonical, OG/Twitter) in sync with the selection; and at
+build time `scripts/generate-seo-pages.ts` pre-renders a static landing page per
+curated comparison — reusing the built SPA shell (so asset hashes stay correct),
+overriding the head, injecting `window.__SEO_STATE__` so the SPA boots into that
+comparison, and shipping a visible H1 + copy for crawlers that don't run JS. It
+also emits `sitemap.xml` and `robots.txt`. The metadata logic lives in a
+dependency-free `lib/seo.ts` shared by both paths, so there's one source of truth.
+Expanding the seed list is the only step between this and thousands of pages.
+
 ### Dependency injection over module globals
 
 The cache and price fetcher are wired via FastAPI's `Depends()` system, backed
@@ -365,7 +378,7 @@ uv run ruff check . && uv run mypy app
 
 # Frontend
 cd frontend
-npm test                  # 45 tests
+npm test                  # 55 tests
 npx tsc -b && npx eslint .
 ```
 
@@ -384,7 +397,8 @@ portfolio builder (normalization, validation, cap, weights, equalize, remove),
 the holdings table (weight-vs-risk divergence flags), the benchmark-metrics and
 calendar-year panels, the ⌘K command palette (mode switch, presets, range, share,
 filtering), the staggered reveal (stagger + reduced-motion opt-out), the
-URL-state hook (hydrate + mirror for both modes), and the app
+SEO helpers (titles, slugs, the document-head hook, `__SEO_STATE__` hydration),
+the URL-state hook (hydrate + mirror for both modes), and the app
 end-to-end via MSW (compare default load, portfolio-mode backtest, ⌘K shortcut,
 missing-ticker warning, 422 shown verbatim with no retry, 502 with
 retry-and-recover). The Plotly charts are mocked because jsdom has no canvas;
@@ -400,12 +414,11 @@ In roughly the order I'd tackle them:
 1. **Trim the bundle.** Plotly is ~80% of it. Most of the app needs only
    `plotly.js-basic-dist`; the heatmap is the lone holdout, so lazy-load the
    correlation view (or its Plotly bundle) behind a dynamic import.
-2. **SEO & programmatic landing pages** — the URL already encodes the full state,
-   so every comparison is an indexable page. Add SSR/pre-rendering with dynamic
-   `<title>`/meta/H1, then statically generate the long-tail (top-N pairwise
-   ticker combos, popular ETF trios, named portfolios) to capture
-   "AAPL vs MSFT total return", "free portfolio backtester no signup", etc.
-   Full keyword research and the build-out checklist live in [`docs/seo.md`](docs/seo.md).
+2. **Scale SEO further** — the dynamic `<head>`, build-time pre-rendered landing
+   pages, `sitemap.xml`/`robots.txt`, and JSON-LD are **shipped** (see below).
+   What's left: validate keywords with a tool, grow the seed list, generate OG
+   images, and add on-demand SSR for the unbounded tail. Research + checklist in
+   [`docs/seo.md`](docs/seo.md).
 3. **Rolling views** — rolling correlation and rolling volatility, for when a
    single window-wide number hides a regime change.
 4. **Redis cache** behind the existing `Cache` protocol (no call-site changes).
@@ -448,14 +461,17 @@ In roughly the order I'd tackle them:
 │       └── test_portfolio_api.py
 └── frontend/
     ├── package.json
+    ├── index.html             # SEO head: meta, OG/Twitter, JSON-LD
+    ├── scripts/
+    │   └── generate-seo-pages.ts  # build-time pre-render + sitemap/robots
     ├── src/
     │   ├── main.tsx
     │   ├── App.tsx             # mode toggle + compare/portfolio routing
     │   ├── index.css           # Tailwind + Linear design tokens
     │   ├── types.ts
-    │   ├── lib/                # utils (cn helper), presets (ticker/range)
+    │   ├── lib/                # utils (cn), presets, seo (titles/slugs)
     │   ├── api/                # client.ts, compare.ts, portfolio.ts
-    │   ├── hooks/              # useComparison, usePortfolio, useUrlState, usePrefersReducedMotion
+    │   ├── hooks/              # useComparison, usePortfolio, useUrlState, useDocumentMeta, usePrefersReducedMotion
     │   ├── utils/              # stats, palette, chartTheme (Plotly colors)
     │   └── components/
     │       ├── ui/             # shadcn primitives (button, card, table, command, dialog, …)
@@ -470,6 +486,7 @@ In roughly the order I'd tackle them:
     └── tests/
         ├── setup.ts  test-utils.tsx  mocks/{server,handlers}.ts
         ├── components/{App,ComparisonTable,TickerInput,PortfolioBuilder,AnnualReturns,BenchmarkMetricsPanel,HoldingsTable,CommandPalette,Reveal}.test.tsx
-        ├── hooks/useUrlState.test.ts
+        ├── hooks/{useUrlState,useDocumentMeta}.test.tsx
+        ├── lib/seo.test.ts
         └── utils/stats.test.ts
 ```

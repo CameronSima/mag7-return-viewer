@@ -3,6 +3,13 @@ import type { HoldingInput, RebalanceFreq } from "@/types";
 
 export type AppMode = "compare" | "portfolio";
 
+declare global {
+  interface Window {
+    /** Initial state injected by a pre-rendered SEO landing page. */
+    __SEO_STATE__?: Partial<AppState>;
+  }
+}
+
 const REBALANCE_VALUES: RebalanceFreq[] = [
   "none",
   "monthly",
@@ -38,7 +45,15 @@ export function useUrlState(
     const params = new URLSearchParams(window.location.search);
     const carriesState =
       params.has("tickers") || params.has("holdings") || params.has("mode");
-    return carriesState ? parse(params, defaults) : defaults;
+    if (carriesState) return parse(params, defaults);
+
+    // A pre-rendered landing page (/compare/<slug>/) injects its selection as a
+    // global so the SPA boots into that comparison. The query string, if any,
+    // still wins — it's the explicit, user-driven source.
+    const seeded = window.__SEO_STATE__;
+    if (seeded) return { ...defaults, ...seeded };
+
+    return defaults;
   });
 
   useEffect(() => {
