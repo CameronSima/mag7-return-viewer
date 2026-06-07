@@ -15,6 +15,7 @@ import { ToggleGroup, ToggleGroupItem } from "./components/ui/toggle-group";
 import { useComparison } from "./hooks/useComparison";
 import { usePortfolio } from "./hooks/usePortfolio";
 import { useUrlState, type AppMode } from "./hooks/useUrlState";
+import { useDocumentMeta } from "./hooks/useDocumentMeta";
 import { ApiError } from "./api/client";
 import { PRESETS } from "./lib/presets";
 import { MAX_COMPARE_TICKERS } from "./types";
@@ -46,6 +47,9 @@ export default function App() {
   });
   const [copied, setCopied] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // Keep the document title / meta / canonical / OG tags in sync with the state.
+  useDocumentMeta(state);
 
   // ⌘K / Ctrl+K toggles the command palette from anywhere.
   useEffect(() => {
