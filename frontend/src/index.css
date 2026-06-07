@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* Enter/exit animation utilities (animate-in, fade-in-*, slide-in-from-*, …)
+   used by the Radix-backed primitives and the results entrance transitions. */
+@import "tw-animate-css";
 
 /* Dark-by-default variant: components can still use `dark:` utilities, and the
    whole app is scoped under <html class="dark">. */
@@ -124,5 +127,18 @@
   * {
     scrollbar-width: thin;
     scrollbar-color: var(--input) transparent;
+  }
+
+  /* Respect the OS "reduce motion" setting: collapse all animation and
+     transition so entrance effects and spinners don't trigger discomfort. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

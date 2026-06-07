@@ -34,7 +34,7 @@ export function PortfolioResults({ data }: PortfolioResultsProps) {
   );
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex animate-in flex-col gap-5 fade-in-0 slide-in-from-bottom-2 duration-500">
       {data.missing.length > 0 && (
         <Alert variant="warning">
           <TriangleAlert />
