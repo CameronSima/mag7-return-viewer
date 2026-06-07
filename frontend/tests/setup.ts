@@ -14,6 +14,18 @@ globalThis.ResizeObserver ??=
 // jsdom doesn't implement scrollIntoView, which cmdk calls on the active item.
 Element.prototype.scrollIntoView ??= () => {};
 
+// jsdom lacks matchMedia; default to "no reduced-motion preference".
+globalThis.matchMedia ??= ((query: string) => ({
+  matches: false,
+  media: query,
+  onchange: null,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+  addListener: () => {},
+  removeListener: () => {},
+  dispatchEvent: () => false,
+})) as unknown as typeof matchMedia;
+
 // Establish API mocking before all tests.
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 

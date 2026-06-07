@@ -6,6 +6,7 @@ import { ComparisonTable } from "./ComparisonTable";
 import { CorrelationHeatmap } from "./CorrelationHeatmap";
 import { Alert, AlertDescription } from "./ui/alert";
 import { WindowCaption } from "./WindowCaption";
+import { Reveal } from "./Reveal";
 
 interface CompareResultsProps {
   data: CompareResponse;
@@ -24,21 +25,33 @@ export function CompareResults({ data, tickers }: CompareResultsProps) {
   );
 
   return (
-    <div className="flex animate-in flex-col gap-5 fade-in-0 slide-in-from-bottom-2 duration-500">
+    <div className="flex flex-col gap-5">
       {data.missing.length > 0 && (
-        <Alert variant="warning">
-          <TriangleAlert />
-          <AlertDescription>
-            No data for: {data.missing.join(", ")}. Check the symbol(s) — they
-            may be misspelled or unavailable.
-          </AlertDescription>
-        </Alert>
+        <Reveal index={0}>
+          <Alert variant="warning">
+            <TriangleAlert />
+            <AlertDescription>
+              No data for: {data.missing.join(", ")}. Check the symbol(s) — they
+              may be misspelled or unavailable.
+            </AlertDescription>
+          </Alert>
+        </Reveal>
       )}
-      <WindowCaption window={data.window} />
-      <GrowthChart series={series} />
-      <ComparisonTable data={data} tickers={tickers} />
+      {data.window.start && (
+        <Reveal index={1}>
+          <WindowCaption window={data.window} />
+        </Reveal>
+      )}
+      <Reveal index={2}>
+        <GrowthChart series={series} />
+      </Reveal>
+      <Reveal index={3}>
+        <ComparisonTable data={data} tickers={tickers} />
+      </Reveal>
       {data.correlation.tickers.length >= 2 && (
-        <CorrelationHeatmap correlation={data.correlation} />
+        <Reveal index={4}>
+          <CorrelationHeatmap correlation={data.correlation} />
+        </Reveal>
       )}
     </div>
   );

@@ -217,8 +217,9 @@ indigo glow, hairline borders, the `#5e6ad2` accent, and crisp headings with tig
 tracking. The data-heavy widgets are headless and free: the sortable tables use
 **TanStack Table**, the date range uses **react-day-picker**, the rebalance picker
 a **Radix Select**, and the ⌘K palette **cmdk**. Motion is **tw-animate-css** (the
-Radix open/close transitions plus a subtle results entrance), gated behind
-`prefers-reduced-motion`. No component library license, no paywalled pieces.
+Radix open/close transitions plus a staggered results reveal), gated behind
+`prefers-reduced-motion` — honored both via a CSS guard and a hook that drops the
+animation machinery entirely. No component library license, no paywalled pieces.
 
 ---
 
@@ -364,7 +365,7 @@ uv run ruff check . && uv run mypy app
 
 # Frontend
 cd frontend
-npm test                  # 42 tests
+npm test                  # 45 tests
 npx tsc -b && npx eslint .
 ```
 
@@ -382,7 +383,8 @@ against a fake price fetcher.
 portfolio builder (normalization, validation, cap, weights, equalize, remove),
 the holdings table (weight-vs-risk divergence flags), the benchmark-metrics and
 calendar-year panels, the ⌘K command palette (mode switch, presets, range, share,
-filtering), the URL-state hook (hydrate + mirror for both modes), and the app
+filtering), the staggered reveal (stagger + reduced-motion opt-out), the
+URL-state hook (hydrate + mirror for both modes), and the app
 end-to-end via MSW (compare default load, portfolio-mode backtest, ⌘K shortcut,
 missing-ticker warning, 422 shown verbatim with no retry, 502 with
 retry-and-recover). The Plotly charts are mocked because jsdom has no canvas;
@@ -453,7 +455,7 @@ In roughly the order I'd tackle them:
     │   ├── types.ts
     │   ├── lib/                # utils (cn helper), presets (ticker/range)
     │   ├── api/                # client.ts, compare.ts, portfolio.ts
-    │   ├── hooks/              # useComparison, usePortfolio, useUrlState
+    │   ├── hooks/              # useComparison, usePortfolio, useUrlState, usePrefersReducedMotion
     │   ├── utils/              # stats, palette, chartTheme (Plotly colors)
     │   └── components/
     │       ├── ui/             # shadcn primitives (button, card, table, command, dialog, …)
@@ -463,11 +465,11 @@ In roughly the order I'd tackle them:
     │       ├── CorrelationHeatmap.tsx AnnualReturns.tsx
     │       ├── BenchmarkMetricsPanel.tsx  CommandPalette.tsx
     │       ├── CompareResults.tsx     PortfolioResults.tsx
-    │       ├── WindowCaption.tsx
+    │       ├── WindowCaption.tsx      Reveal.tsx
     │       └── LoadingState.tsx       ErrorState.tsx
     └── tests/
         ├── setup.ts  test-utils.tsx  mocks/{server,handlers}.ts
-        ├── components/{App,ComparisonTable,TickerInput,PortfolioBuilder,AnnualReturns,BenchmarkMetricsPanel,HoldingsTable,CommandPalette}.test.tsx
+        ├── components/{App,ComparisonTable,TickerInput,PortfolioBuilder,AnnualReturns,BenchmarkMetricsPanel,HoldingsTable,CommandPalette,Reveal}.test.tsx
         ├── hooks/useUrlState.test.ts
         └── utils/stats.test.ts
 ```

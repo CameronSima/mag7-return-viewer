@@ -9,6 +9,7 @@ import { AnnualReturns } from "./AnnualReturns";
 import { BenchmarkMetricsPanel } from "./BenchmarkMetricsPanel";
 import { Alert, AlertDescription } from "./ui/alert";
 import { WindowCaption } from "./WindowCaption";
+import { Reveal } from "./Reveal";
 
 interface PortfolioResultsProps {
   data: PortfolioResponse;
@@ -34,26 +35,44 @@ export function PortfolioResults({ data }: PortfolioResultsProps) {
   );
 
   return (
-    <div className="flex animate-in flex-col gap-5 fade-in-0 slide-in-from-bottom-2 duration-500">
+    <div className="flex flex-col gap-5">
       {data.missing.length > 0 && (
-        <Alert variant="warning">
-          <TriangleAlert />
-          <AlertDescription>
-            No data for: {data.missing.join(", ")} — dropped from the portfolio,
-            with the remaining weights renormalized.
-          </AlertDescription>
-        </Alert>
+        <Reveal index={0}>
+          <Alert variant="warning">
+            <TriangleAlert />
+            <AlertDescription>
+              No data for: {data.missing.join(", ")} — dropped from the
+              portfolio, with the remaining weights renormalized.
+            </AlertDescription>
+          </Alert>
+        </Reveal>
       )}
-      <WindowCaption window={data.window} />
-      <GrowthChart series={series} />
-      <ComparisonTable data={data} tickers={order} />
+      {data.window.start && (
+        <Reveal index={1}>
+          <WindowCaption window={data.window} />
+        </Reveal>
+      )}
+      <Reveal index={2}>
+        <GrowthChart series={series} />
+      </Reveal>
+      <Reveal index={3}>
+        <ComparisonTable data={data} tickers={order} />
+      </Reveal>
       {data.benchmark_metrics && (
-        <BenchmarkMetricsPanel metrics={data.benchmark_metrics} />
+        <Reveal index={4}>
+          <BenchmarkMetricsPanel metrics={data.benchmark_metrics} />
+        </Reveal>
       )}
-      <AnnualReturns annual={data.annual} tickers={order} />
-      <HoldingsTable holdings={data.holdings} />
+      <Reveal index={5}>
+        <AnnualReturns annual={data.annual} tickers={order} />
+      </Reveal>
+      <Reveal index={6}>
+        <HoldingsTable holdings={data.holdings} />
+      </Reveal>
       {data.correlation.tickers.length >= 2 && (
-        <CorrelationHeatmap correlation={data.correlation} />
+        <Reveal index={7}>
+          <CorrelationHeatmap correlation={data.correlation} />
+        </Reveal>
       )}
     </div>
   );

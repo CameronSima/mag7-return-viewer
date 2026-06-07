@@ -1,14 +1,16 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
- * Skeleton placeholder while a comparison loads. Roughly mirrors the shape of
- * the results (chart card + table) so the layout doesn't jump on load.
+ * Skeleton placeholder while results load. Mirrors the real layout — window
+ * caption, growth chart, then a table — so the page doesn't jump when the data
+ * arrives and the wait reads as "loading this view", not a blank gap.
  */
 export function LoadingState() {
   return (
-    <div className="flex flex-col gap-3">
-      <Skeleton className="h-[480px] w-full" />
-      <Skeleton className="h-64 w-full" />
+    <div className="flex flex-col gap-5">
+      <Skeleton className="h-4 w-72" />
+      <Skeleton className="h-[420px] w-full rounded-lg" />
+      <Skeleton className="h-56 w-full rounded-lg" />
     </div>
   );
 }
