@@ -1,5 +1,0 @@
-# Cloudflare Pages SPA fallback. Real files are served first (hashed assets and
-# the prerendered SEO pages at /compare/<slug>/index.html take precedence), so
-# this only catches client-side routes with no matching file and hands them the
-# SPA shell with a 200.
-/*  /index.html  200

@@ -142,12 +142,16 @@ Set two build-time variables (see `frontend/.env.example`):
 - `VITE_SITE_URL` — your deployed domain, baked into the prerendered SEO pages and
   `sitemap.xml` as the canonical URL.
 
-`frontend/public/_redirects` gives the SPA its `/* → /index.html 200` fallback
-(real files — hashed assets and the prerendered `/compare/<slug>/` pages — are
-served first), and `frontend/public/_headers` sets an immutable long cache on
-`/assets/*` and `no-cache` on the HTML shell. Both are copied into `dist/` by the
-build, so Pages picks them up automatically. (On Workers, the `wrangler.jsonc`
-`not_found_handling` setting covers the SPA fallback; `_headers` is still honored.)
+The SPA fallback (serve `/index.html` with a 200 for client-side routes that
+have no matching file) is handled by the `wrangler.jsonc` `not_found_handling:
+"single-page-application"` setting — real files such as hashed assets and the
+prerendered `/compare/<slug>/` pages are served first. `frontend/public/_headers`
+sets an immutable long cache on `/assets/*` and `no-cache` on the HTML shell; it
+is copied into `dist/` by the build and honored automatically.
+
+> Note: a `_redirects` file with a `/* /index.html 200` rule is **not** used —
+> Workers Assets rejects that catch-all as an infinite-loop redirect at deploy
+> time, and `not_found_handling` already provides the equivalent fallback.
 
 **The `/api` prefix** is consistent across environments: the client calls
 `/api/*`, the backend strips that prefix before routing (routers stay mounted at
@@ -570,7 +574,7 @@ In roughly the order I'd tackle them:
     ├── package.json
     ├── .env.example           # VITE_API_BASE_URL, VITE_SITE_URL (Pages build)
     ├── index.html             # SEO head: meta, OG/Twitter, JSON-LD
-    ├── public/                # _redirects (SPA fallback), _headers (caching)
+    ├── public/                # _headers (caching); SPA fallback via wrangler not_found_handling
     ├── scripts/
     │   └── generate-seo-pages.ts  # build-time pre-render + sitemap/robots
     ├── src/
