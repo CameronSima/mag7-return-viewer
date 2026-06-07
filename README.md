@@ -393,14 +393,20 @@ In roughly the order I'd tackle them:
 1. **Trim the bundle.** Plotly is ~80% of it. Most of the app needs only
    `plotly.js-basic-dist`; the heatmap is the lone holdout, so lazy-load the
    correlation view (or its Plotly bundle) behind a dynamic import.
-2. **Rolling views** — rolling correlation and rolling volatility, for when a
+2. **SEO & programmatic landing pages** — the URL already encodes the full state,
+   so every comparison is an indexable page. Add SSR/pre-rendering with dynamic
+   `<title>`/meta/H1, then statically generate the long-tail (top-N pairwise
+   ticker combos, popular ETF trios, named portfolios) to capture
+   "AAPL vs MSFT total return", "free portfolio backtester no signup", etc.
+   Full keyword research and the build-out checklist live in [`docs/seo.md`](docs/seo.md).
+3. **Rolling views** — rolling correlation and rolling volatility, for when a
    single window-wide number hides a regime change.
-3. **Redis cache** behind the existing `Cache` protocol (no call-site changes).
-4. **Symbol search/validation** — resolve and disambiguate tickers as the user
+4. **Redis cache** behind the existing `Cache` protocol (no call-site changes).
+5. **Symbol search/validation** — resolve and disambiguate tickers as the user
    types, instead of discovering a typo only after the request.
-5. **Configuration via `pydantic-settings`** sourced from the environment.
-6. **CI** (GitHub Actions): pytest + ruff + mypy; vitest + tsc + eslint.
-7. **Risk-free input** for an excess-return Sharpe, for users who want it.
+6. **Configuration via `pydantic-settings`** sourced from the environment.
+7. **CI** (GitHub Actions): pytest + ruff + mypy; vitest + tsc + eslint.
+8. **Risk-free input** for an excess-return Sharpe, for users who want it.
 
 ---
 
