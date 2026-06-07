@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && tsx scripts/generate-seo-pages.ts",
-    "deploy": "npm run build && wrangler deploy",
+    "deploy": "wrangler deploy",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",

@@ -7,11 +7,19 @@
   // is what fixes the "Failed to load module script ... MIME type of ''" error
   // that occurs when the build output isn't served as static assets.
   //
-  // Build first, then deploy:
-  //   npm run build && npx wrangler deploy
+  // `wrangler deploy` runs the build below first, then uploads ./dist — so a bare
+  // `wrangler deploy` (or `npm run deploy`) is all that's needed:
+  //   npx wrangler deploy
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "mag7-return-viewer",
   "compatibility_date": "2025-04-01",
+  // Produce dist/ before every deploy. wrangler runs this command (from this
+  // file's directory) ahead of uploading assets, so the build output is always
+  // fresh and we never ship stale or missing assets. Assumes deps are installed
+  // (`npm install`); Cloudflare's build pipeline installs them automatically.
+  "build": {
+    "command": "npm run build"
+  },
   "assets": {
     "directory": "./dist",
     // Serve real files first (hashed assets, prerendered /compare/<slug>/ pages);
