@@ -104,6 +104,15 @@ export const samplePortfolioResponse: PortfolioResponse = {
     { year: 2024, partial: false, returns: { Portfolio: 0.18, SPY: 0.12 } },
   ],
   benchmark: "SPY",
+  benchmark_metrics: {
+    benchmark: "SPY",
+    beta: 1.15,
+    alpha: 0.04,
+    r_squared: 0.88,
+    tracking_error: 0.06,
+    information_ratio: 0.65,
+    correlation: 0.94,
+  },
   missing: [],
 };
 

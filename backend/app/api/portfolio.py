@@ -17,6 +17,7 @@ from app.dependencies import get_portfolio_cache, get_price_fetcher
 from app.models import PortfolioQuery, PortfolioResponse, RebalanceFreq
 from app.services.analytics import (
     compute_annual_returns,
+    compute_benchmark_metrics,
     compute_comparison_stats,
     compute_correlation,
     compute_growth,
@@ -153,6 +154,13 @@ def get_portfolio(
         "holdings": holdings,
         "annual": compute_annual_returns(combined),
         "benchmark": active_benchmark,
+        "benchmark_metrics": (
+            compute_benchmark_metrics(
+                combined, PORTFOLIO_KEY, active_benchmark, TRADING_DAYS_PER_YEAR
+            )
+            if active_benchmark is not None
+            else None
+        ),
         "missing": missing,
     }
     cache.set(cache_key, payload)

@@ -208,6 +208,19 @@ class AnnualReturn(BaseModel):
     returns: dict[str, float]
 
 
+class BenchmarkMetrics(BaseModel):
+    """Portfolio metrics relative to the benchmark (only present when one is set
+    and there's enough overlapping history). Annualized via the 252-day rule."""
+
+    benchmark: str
+    beta: float
+    alpha: float
+    r_squared: float
+    tracking_error: float
+    information_ratio: float
+    correlation: float
+
+
 class PortfolioResponse(BaseModel):
     """Full response for GET /portfolio.
 
@@ -223,6 +236,7 @@ class PortfolioResponse(BaseModel):
     holdings: list[Holding]
     annual: list[AnnualReturn]
     benchmark: str | None
+    benchmark_metrics: BenchmarkMetrics | None
     missing: list[str]
 
 

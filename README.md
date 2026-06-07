@@ -88,10 +88,12 @@ typo'd symbol has no data, and the shareable URL.
 - The blended **portfolio's value is backtested** day by day — holdings drift
   between rebalances and snap back to target weights on each rebalance boundary
   — then plotted as growth of $1 against the benchmark.
-- The same **risk/return table** compares the portfolio to the benchmark, a
-  **calendar-year returns** chart + table shows year-by-year performance vs. the
-  benchmark (partial first/last years flagged), and a **holdings breakdown**
-  shows each name's weight, total return, and weighted contribution.
+- The same **risk/return table** compares the portfolio to the benchmark; a
+  **benchmark-relative panel** adds beta, annualized alpha, R², tracking error,
+  and information ratio; a **calendar-year returns** chart + table shows
+  year-by-year performance vs. the benchmark (partial first/last years flagged);
+  and a **holdings breakdown** shows each name's weight, total return, and
+  weighted contribution.
 
 Weights are entered raw and shown normalized to 100%; an "Equal weight" button
 balances them. A dropped (no-data) holding renormalizes the rest.
@@ -266,6 +268,10 @@ optional → equal-weight), `rebalance` (`none`|`monthly`|`quarterly`|`annually`
   "holdings": [{ "ticker": "AAPL", "weight": 0.4, "total_return": 2.41 }],
   "annual": [{ "year": 2020, "partial": true, "returns": { "Portfolio": 0.21, "SPY": 0.12 } }],
   "benchmark": "SPY",
+  "benchmark_metrics": {
+    "benchmark": "SPY", "beta": 1.15, "alpha": 0.04, "r_squared": 0.88,
+    "tracking_error": 0.06, "information_ratio": 0.65, "correlation": 0.94
+  },
   "missing": []
 }
 ```
@@ -273,8 +279,10 @@ optional → equal-weight), `rebalance` (`none`|`monthly`|`quarterly`|`annually`
 `growth`/`stats`/`correlation`/`annual` are keyed by `"Portfolio"` and the
 benchmark, so the same chart/table components render them. Each `annual` entry
 chains from the prior year-end (so the yearly returns compound to the total) and
-flags a `partial` first/last year. Weights are merged across duplicate tickers
-and normalized to sum to 1.
+flags a `partial` first/last year. `benchmark_metrics` is the regression of the
+portfolio's daily returns on the benchmark's (null when no benchmark is set or
+there's too little overlap). Weights are merged across duplicate tickers and
+normalized to sum to 1.
 
 ### `GET /returns`
 
@@ -299,8 +307,22 @@ So there's no ambiguity about what the numbers mean:
 - **Best / worst day** — the largest single-day gain and loss.
 - **Days** — trading-day observations in the common window.
 
-Degenerate inputs (a single common day, a zero-variance series) yield zeros, not
-`NaN`/`inf`, so the JSON is always valid and the UI never shows garbage.
+Portfolio mode adds **benchmark-relative** metrics, from the regression of the
+portfolio's daily returns on the benchmark's (risk-free rate = 0):
+
+- **Beta** — `cov(portfolio, benchmark) / var(benchmark)`; sensitivity to the
+  benchmark (1.0 moves one-for-one).
+- **Alpha** — Jensen's alpha: the daily regression intercept
+  `mean(portfolio) − beta × mean(benchmark)`, annualized geometrically.
+- **R²** — squared correlation; the fraction of the portfolio's variance the
+  benchmark explains.
+- **Tracking error** — annualized standard deviation of the active
+  (portfolio − benchmark) daily return.
+- **Information ratio** — annualized active return ÷ tracking error.
+
+Degenerate inputs (a single common day, a zero-variance series, a flat
+benchmark) yield zeros, not `NaN`/`inf`, so the JSON is always valid and the UI
+never shows garbage.
 
 ---
 
@@ -324,18 +346,19 @@ Degenerate inputs (a single common day, a zero-variance series) yield zeros, not
 ```bash
 # Backend
 cd backend
-uv run pytest -v          # 58 tests
+uv run pytest -v          # 62 tests
 uv run ruff check . && uv run mypy app
 
 # Frontend
 cd frontend
-npm test                  # 30 tests
+npm test                  # 32 tests
 npx tsc -b && npx eslint .
 ```
 
 **Backend** covers the analytics math (common-window alignment, growth rebasing,
 CAGR/vol/Sharpe, max drawdown, correlation, degenerate inputs, downsampling, and
-the portfolio simulation incl. rebalancing vs. buy-and-hold), calendar-year chaining + partial-year flagging, the cache, and all endpoints
+the portfolio simulation incl. rebalancing vs. buy-and-hold), calendar-year chaining + partial-year flagging, benchmark-relative metrics
+(beta/alpha/R²/tracking error/information ratio), the cache, and all endpoints
 end-to-end (happy path, ticker/weight normalization & validation, missing-holding
 renormalization, no-overlap → 422, no-data → 422, upstream → 502, cache hits)
 against a fake price fetcher.
@@ -358,9 +381,11 @@ In roughly the order I'd tackle them:
 1. **Trim the bundle.** Plotly is ~80% of it. Most of the app needs only
    `plotly.js-basic-dist`; the heatmap is the lone holdout, so lazy-load the
    correlation view (or its Plotly bundle) behind a dynamic import.
-2. **Richer portfolio analytics** — building on the calendar-year returns
-   already shipped: benchmark-relative beta/alpha, tracking error and information
-   ratio, and per-holding contribution to portfolio *risk* (not just return).
+2. **Per-holding risk contribution** — decompose portfolio volatility into each
+   holding's marginal contribution (not just its return contribution), to expose
+   concentration risk that weights alone hide. Completes the analytics layer
+   alongside the calendar-year returns and benchmark-relative metrics already
+   shipped.
 3. **Rolling views** — rolling correlation and rolling volatility, for when a
    single window-wide number hides a regime change.
 4. **Redis cache** behind the existing `Cache` protocol (no call-site changes).
@@ -418,12 +443,13 @@ In roughly the order I'd tackle them:
     │       ├── DateRangePicker.tsx    GrowthChart.tsx
     │       ├── ComparisonTable.tsx    HoldingsTable.tsx
     │       ├── CorrelationHeatmap.tsx AnnualReturns.tsx
+    │       ├── BenchmarkMetricsPanel.tsx
     │       ├── CompareResults.tsx     PortfolioResults.tsx
     │       ├── WindowCaption.tsx
     │       └── LoadingState.tsx       ErrorState.tsx
     └── tests/
         ├── setup.ts  test-utils.tsx  mocks/{server,handlers}.ts
-        ├── components/{App,ComparisonTable,TickerInput,PortfolioBuilder,AnnualReturns}.test.tsx
+        ├── components/{App,ComparisonTable,TickerInput,PortfolioBuilder,AnnualReturns,BenchmarkMetricsPanel}.test.tsx
         ├── hooks/useUrlState.test.ts
         └── utils/stats.test.ts
 ```

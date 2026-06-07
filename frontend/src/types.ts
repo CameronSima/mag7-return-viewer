@@ -125,6 +125,18 @@ export interface AnnualReturn {
   returns: Record<string, number>;
 }
 
+/** Portfolio metrics measured relative to the benchmark. Present only when a
+ *  benchmark is set and there's enough overlapping history. */
+export interface BenchmarkMetrics {
+  benchmark: string;
+  beta: number;
+  alpha: number; // annualized fraction
+  r_squared: number; // 0..1
+  tracking_error: number; // annualized fraction
+  information_ratio: number;
+  correlation: number;
+}
+
 /** Complete response from GET /portfolio. `growth`/`stats` are keyed by
  *  "Portfolio" and (if given) the benchmark symbol, so the same chart/table
  *  components render them. */
@@ -136,6 +148,7 @@ export interface PortfolioResponse {
   holdings: Holding[];
   annual: AnnualReturn[];
   benchmark: string | null;
+  benchmark_metrics: BenchmarkMetrics | null;
   missing: string[];
 }
 

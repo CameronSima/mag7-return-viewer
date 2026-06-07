@@ -6,6 +6,7 @@ import { ComparisonTable } from "./ComparisonTable";
 import { CorrelationHeatmap } from "./CorrelationHeatmap";
 import { HoldingsTable } from "./HoldingsTable";
 import { AnnualReturns } from "./AnnualReturns";
+import { BenchmarkMetricsPanel } from "./BenchmarkMetricsPanel";
 import { Alert, AlertDescription } from "./ui/alert";
 import { WindowCaption } from "./WindowCaption";
 
@@ -46,6 +47,9 @@ export function PortfolioResults({ data }: PortfolioResultsProps) {
       <WindowCaption window={data.window} />
       <GrowthChart series={series} />
       <ComparisonTable data={data} tickers={order} />
+      {data.benchmark_metrics && (
+        <BenchmarkMetricsPanel metrics={data.benchmark_metrics} />
+      )}
       <AnnualReturns annual={data.annual} tickers={order} />
       <HoldingsTable holdings={data.holdings} />
       {data.correlation.tickers.length >= 2 && (

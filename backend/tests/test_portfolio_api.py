@@ -19,8 +19,10 @@ def test_portfolio_happy_path(client: TestClient) -> None:
 
     assert set(body.keys()) == {
         "growth", "stats", "correlation", "window", "holdings", "annual",
-        "benchmark", "missing",
+        "benchmark", "benchmark_metrics", "missing",
     }
+    # No benchmark requested -> no benchmark-relative metrics.
+    assert body["benchmark_metrics"] is None
     # Calendar-year returns are present and keyed by the series names.
     assert body["annual"]
     assert "Portfolio" in body["annual"][0]["returns"]
@@ -79,6 +81,9 @@ def test_portfolio_with_benchmark(client: TestClient) -> None:
     # SPY is the benchmark, not a holding.
     assert "SPY" not in {h["ticker"] for h in body["holdings"]}
     assert set(body["correlation"]["tickers"]) == {"Portfolio", "SPY"}
+    # Benchmark-relative metrics are computed and reported.
+    assert body["benchmark_metrics"]["benchmark"] == "SPY"
+    assert "beta" in body["benchmark_metrics"]
 
 
 def test_portfolio_rejects_weight_count_mismatch(client: TestClient) -> None:

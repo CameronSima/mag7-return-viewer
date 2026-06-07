@@ -6,6 +6,7 @@ import pytest
 
 from app.services.analytics import (
     compute_annual_returns,
+    compute_benchmark_metrics,
     compute_comparison_stats,
     compute_correlation,
     compute_growth,
@@ -13,6 +14,13 @@ from app.services.analytics import (
     restrict_to_common_window,
     simulate_portfolio_value,
 )
+
+_FOUR_DAYS = ["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"]
+
+
+def _prices_from_returns(returns: list[float], start: float = 100.0) -> list[float]:
+    """Build a price path from daily returns, starting at ``start``."""
+    return (start * np.cumprod(np.concatenate([[1.0], 1.0 + np.array(returns)]))).tolist()
 
 
 def _frame(data: dict[str, list[float]], dates: list[str]) -> pd.DataFrame:
@@ -51,9 +59,7 @@ def test_restrict_reports_entirely_missing_ticker() -> None:
 
 
 def test_restrict_all_missing_returns_empty() -> None:
-    prices = _frame(
-        {"GHOST": [float("nan"), float("nan")]}, ["2024-01-02", "2024-01-03"]
-    )
+    prices = _frame({"GHOST": [float("nan"), float("nan")]}, ["2024-01-02", "2024-01-03"])
     aligned, missing = restrict_to_common_window(prices)
     assert missing == ["GHOST"]
     assert aligned.empty
@@ -251,9 +257,7 @@ def test_annual_returns_chains_across_years() -> None:
     assert rows[1]["returns"]["AAA"] == pytest.approx(0.20)  # 132/110
     assert [r["partial"] for r in rows] == [False, False]
     # Compounds to the total return: 1.10 * 1.20 == 132/100.
-    assert (1 + rows[0]["returns"]["AAA"]) * (
-        1 + rows[1]["returns"]["AAA"]
-    ) == pytest.approx(1.32)
+    assert (1 + rows[0]["returns"]["AAA"]) * (1 + rows[1]["returns"]["AAA"]) == pytest.approx(1.32)
 
 
 def test_annual_returns_flags_partial_first_and_last_years() -> None:
@@ -281,3 +285,56 @@ def test_annual_returns_multiple_series() -> None:
 
 def test_annual_returns_empty_frame() -> None:
     assert compute_annual_returns(pd.DataFrame()) == []
+
+
+def test_benchmark_metrics_identical_series() -> None:
+    """A portfolio identical to its benchmark has beta 1, R² 1, perfect
+    correlation, zero alpha, and zero tracking error / information ratio."""
+    prices = _frame(
+        {"Portfolio": [100.0, 101.0, 102.0, 103.0], "SPY": [100.0, 101.0, 102.0, 103.0]},
+        _FOUR_DAYS,
+    )
+    m = compute_benchmark_metrics(prices, "Portfolio", "SPY", 252)
+    assert m is not None
+    assert m["benchmark"] == "SPY"
+    assert m["beta"] == pytest.approx(1.0)
+    assert m["r_squared"] == pytest.approx(1.0)
+    assert m["correlation"] == pytest.approx(1.0)
+    assert m["alpha"] == pytest.approx(0.0, abs=1e-9)
+    assert m["tracking_error"] == pytest.approx(0.0)
+    assert m["information_ratio"] == pytest.approx(0.0)
+
+
+def test_benchmark_metrics_leveraged_portfolio_has_beta_two() -> None:
+    """A portfolio that moves exactly 2x the benchmark each day has beta 2, R² 1
+    (perfectly linear), and zero alpha (no return beyond what beta explains)."""
+    rb = [0.01, -0.005, 0.02]
+    prices = _frame(
+        {
+            "Portfolio": _prices_from_returns([2 * r for r in rb]),
+            "SPY": _prices_from_returns(rb),
+        },
+        _FOUR_DAYS,
+    )
+    m = compute_benchmark_metrics(prices, "Portfolio", "SPY", 252)
+    assert m is not None
+    assert m["beta"] == pytest.approx(2.0)
+    assert m["r_squared"] == pytest.approx(1.0)
+    assert m["correlation"] == pytest.approx(1.0)
+    assert m["alpha"] == pytest.approx(0.0, abs=1e-9)
+    # Active return tracks the benchmark (active == rb), so tracking error > 0.
+    assert m["tracking_error"] > 0.0
+
+
+def test_benchmark_metrics_none_when_benchmark_absent() -> None:
+    prices = _frame({"Portfolio": [100.0, 101.0, 102.0]}, _FOUR_DAYS[:3])
+    assert compute_benchmark_metrics(prices, "Portfolio", "SPY", 252) is None
+
+
+def test_benchmark_metrics_none_when_too_few_observations() -> None:
+    """Two prices is a single return — not enough to regress."""
+    prices = _frame(
+        {"Portfolio": [100.0, 101.0], "SPY": [100.0, 101.0]},
+        _FOUR_DAYS[:2],
+    )
+    assert compute_benchmark_metrics(prices, "Portfolio", "SPY", 252) is None

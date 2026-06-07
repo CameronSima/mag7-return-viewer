@@ -80,6 +80,20 @@ class AnnualReturnDict(TypedDict):
     returns: dict[str, float]
 
 
+class BenchmarkMetricsDict(TypedDict):
+    """Portfolio metrics measured *relative to* a benchmark, from the regression
+    of portfolio daily returns on the benchmark's (risk-free rate = 0, matching
+    the Sharpe convention). All annualized figures use the 252-day convention."""
+
+    benchmark: str
+    beta: float  # sensitivity to benchmark moves (1.0 == moves one-for-one)
+    alpha: float  # annualized return beyond what beta explains (Jensen's alpha)
+    r_squared: float  # fraction of variance explained by the benchmark (0..1)
+    tracking_error: float  # annualized stdev of active (portfolio − benchmark) return
+    information_ratio: float  # annualized active return / tracking error
+    correlation: float
+
+
 def restrict_to_common_window(prices: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     """Align a price frame to the window every present ticker shares.
 
@@ -244,6 +258,68 @@ def compute_annual_returns(aligned_prices: pd.DataFrame) -> list[AnnualReturnDic
             }
         )
     return rows
+
+
+def compute_benchmark_metrics(
+    aligned_prices: pd.DataFrame,
+    portfolio_key: str,
+    benchmark_key: str,
+    trading_days_per_year: int,
+) -> BenchmarkMetricsDict | None:
+    """Benchmark-relative metrics (beta, alpha, R², tracking error, information
+    ratio) from the two series' aligned daily returns.
+
+    Returns None when the benchmark column is absent or there aren't enough
+    overlapping observations. Degenerate inputs (a flat benchmark, identical
+    series) coerce to 0.0 rather than NaN/inf, like the other analytics.
+    """
+    cols = set(aligned_prices.columns)
+    if portfolio_key not in cols or benchmark_key not in cols:
+        return None
+
+    daily = (
+        aligned_prices[[portfolio_key, benchmark_key]]
+        .pct_change(fill_method=None)
+        .iloc[1:]
+        .dropna()
+    )
+    if len(daily) < 2:
+        return None
+
+    rp = daily[portfolio_key]
+    rb = daily[benchmark_key]
+
+    var_b = float(rb.var())  # sample variance (ddof=1)
+    beta = float(rp.cov(rb) / var_b) if var_b > 0 else 0.0
+
+    # Jensen's alpha: the daily intercept, annualized geometrically (like CAGR).
+    alpha_daily = float(rp.mean()) - beta * float(rb.mean())
+    alpha = (
+        float((1.0 + alpha_daily) ** trading_days_per_year - 1.0)
+        if alpha_daily > -1.0
+        else 0.0
+    )
+
+    corr = float(rp.corr(rb))
+
+    active = rp - rb  # active (excess-over-benchmark) return
+    std_active = float(active.std())
+    tracking_error = std_active * sqrt(trading_days_per_year) if std_active > 0 else 0.0
+    information_ratio = (
+        (float(active.mean()) / std_active) * sqrt(trading_days_per_year)
+        if std_active > 0
+        else 0.0
+    )
+
+    return {
+        "benchmark": benchmark_key,
+        "beta": _finite(beta),
+        "alpha": _finite(alpha),
+        "r_squared": _finite(corr * corr),
+        "tracking_error": _finite(tracking_error),
+        "information_ratio": _finite(information_ratio),
+        "correlation": _finite(corr),
+    }
 
 
 def compute_correlation(aligned_prices: pd.DataFrame) -> CorrelationDict:
