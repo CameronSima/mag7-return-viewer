@@ -1,10 +1,38 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Acadian | MAG7 Returns</title>
+    <meta name="theme-color" content="#08090a" />
+
+    <title>Stock Comparison — Free stock & ETF comparison and portfolio backtester</title>
+    <meta
+      name="description"
+      content="Compare any stocks or ETFs, or backtest a weighted portfolio — growth, risk, correlation, and calendar-year returns, side by side. Total return with dividends reinvested. Free, no sign-up." />
+    <link rel="canonical" href="https://stock-comparison.example.com/" />
+
+    <!-- Open Graph / Twitter defaults; the app overrides these per selection. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Stock Comparison" />
+    <meta property="og:title" content="Stock Comparison — compare stocks, ETFs & portfolios" />
+    <meta
+      property="og:description"
+      content="Growth, risk, correlation, and calendar-year returns, side by side. Total return, free, no sign-up." />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Structured data: a free finance web application. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Stock Comparison",
+        "applicationCategory": "FinanceApplication",
+        "operatingSystem": "Any",
+        "description": "Free tool to compare stocks and ETFs and backtest weighted portfolios — growth, risk, correlation, and calendar-year returns.",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

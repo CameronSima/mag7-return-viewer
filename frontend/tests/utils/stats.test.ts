@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { formatReturnPct, isPositive } from "@/utils/stats";
+import {
+  formatNumber,
+  formatPct,
+  formatReturnPct,
+  isPositive,
+} from "@/utils/stats";
 
 describe("formatReturnPct", () => {
   it("formats positive returns with a plus sign and two decimals", () => {
@@ -12,6 +17,22 @@ describe("formatReturnPct", () => {
 
   it("formats zero as +0.00%", () => {
     expect(formatReturnPct(0)).toBe("+0.00%");
+  });
+});
+
+describe("formatPct", () => {
+  it("formats a fraction as an unsigned percentage with one decimal", () => {
+    expect(formatPct(0.284)).toBe("28.4%");
+  });
+
+  it("does not add a plus sign", () => {
+    expect(formatPct(0.05)).toBe("5.0%");
+  });
+});
+
+describe("formatNumber", () => {
+  it("formats with two decimals", () => {
+    expect(formatNumber(1.2345)).toBe("1.23");
   });
 });
 

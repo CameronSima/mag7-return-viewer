@@ -6,7 +6,12 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from app.dependencies import get_cache, get_price_fetcher
+from app.dependencies import (
+    get_cache,
+    get_compare_cache,
+    get_portfolio_cache,
+    get_price_fetcher,
+)
 from app.main import app
 from app.services.cache import InMemoryTTLCache
 
@@ -51,6 +56,8 @@ def client(sample_prices: pd.DataFrame):
 
     app.dependency_overrides[get_price_fetcher] = lambda: fake_fetcher
     app.dependency_overrides[get_cache] = lambda: fresh_cache
+    app.dependency_overrides[get_compare_cache] = lambda: fresh_cache
+    app.dependency_overrides[get_portfolio_cache] = lambda: fresh_cache
 
     with TestClient(app) as c:
         # Attach the fakes so tests can inspect them.

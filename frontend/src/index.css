@@ -1,111 +1,144 @@
+@import "tailwindcss";
+/* Enter/exit animation utilities (animate-in, fade-in-*, slide-in-from-*, …)
+   used by the Radix-backed primitives and the results entrance transitions. */
+@import "tw-animate-css";
+
+/* Dark-by-default variant: components can still use `dark:` utilities, and the
+   whole app is scoped under <html class="dark">. */
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design tokens — Linear's design language. A near-black, faintly cool canvas;
+ * surfaces barely lifted from the background with hairline borders; Linear's
+ * signature indigo (#5e6ad2) as the single accent; high-contrast text with a
+ * muted slate-gray secondary; semantic green/red for gains/losses. shadcn
+ * component classes (bg-card, text-muted-foreground, border-border, …) resolve
+ * to these via the @theme mapping below.
+ */
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --background: #08090a;
+  --foreground: #f7f8f8;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --card: #0e0f11;
+  --card-foreground: #f7f8f8;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --popover: #161719;
+  --popover-foreground: #f7f8f8;
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
+  --primary: #5e6ad2;
+  --primary-foreground: #ffffff;
+
+  --secondary: #1a1b1e;
+  --secondary-foreground: #f7f8f8;
+
+  --muted: #141517;
+  --muted-foreground: #8a8f98;
+
+  --accent: #1f2023;
+  --accent-foreground: #f7f8f8;
+
+  --destructive: #eb5757;
+  --destructive-foreground: #ffffff;
+
+  --success: #4cb782;
+
+  --border: #202124;
+  --input: #2a2b2f;
+  --ring: #5e6ad2;
+
+  --radius: 0.625rem;
+
+  color-scheme: dark;
+}
+
+/* Map the raw tokens to Tailwind color/radius utilities (v4 @theme). */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --font-sans:
+    "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
   }
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
+  body {
+    margin: 0;
+    min-height: 100svh;
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    /* tabular numerals so financial figures line up in tables/cards */
+    font-feature-settings: "tnum";
+    /* A near-black canvas with one faint indigo glow bleeding from the top —
+       Linear's signature ambient lighting, kept very subtle. */
+    background-color: var(--background);
+    background-image: radial-gradient(
+      80rem 40rem at 50% -8rem,
+      rgba(94, 106, 210, 0.1),
+      transparent 60%
+    );
+    background-repeat: no-repeat;
+    background-attachment: fixed;
   }
-}
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-}
-
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+  /* Linear-style headings: tight, slightly negative tracking, crisp white. */
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.02em;
   }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
+
+  ::selection {
+    background-color: rgba(94, 106, 210, 0.3);
   }
-}
-p {
-  margin: 0;
-}
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
+  /* Subtle, unobtrusive scrollbars to match the dark surfaces. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--input) transparent;
+  }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+  /* Respect the OS "reduce motion" setting: collapse all animation and
+     transition so entrance effects and spinners don't trigger discomfort. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }

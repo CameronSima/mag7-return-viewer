@@ -1,28 +1,16 @@
-import { Box, Skeleton, Stack } from "@mui/material";
+import { Skeleton } from "@/components/ui/skeleton";
 
 /**
- * Skeleton placeholder for the returns grid while data is loading.
- * Matches the rough shape of the real grid so layout doesn't shift on load.
+ * Skeleton placeholder while results load. Mirrors the real layout — window
+ * caption, growth chart, then a table — so the page doesn't jump when the data
+ * arrives and the wait reads as "loading this view", not a blank gap.
  */
 export function LoadingState() {
   return (
-    <Stack spacing={2}>
-      <Skeleton variant="rectangular" height={56} />
-      <Box
-        sx={{
-          display: "grid",
-          gap: 2,
-          gridTemplateColumns: {
-            xs: "1fr",
-            sm: "repeat(2, 1fr)",
-            md: "repeat(3, 1fr)",
-            lg: "repeat(4, 1fr)",
-          },
-        }}>
-        {Array.from({ length: 7 }).map((_, i) => (
-          <Skeleton key={i} variant="rectangular" height={240} />
-        ))}
-      </Box>
-    </Stack>
+    <div className="flex flex-col gap-5">
+      <Skeleton className="h-4 w-72" />
+      <Skeleton className="h-[420px] w-full rounded-lg" />
+      <Skeleton className="h-56 w-full rounded-lg" />
+    </div>
   );
 }

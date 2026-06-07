@@ -27,4 +27,23 @@ export default defineConfig([
       'react-refresh/only-export-components': 'off',
     },
   },
+  {
+    // shadcn/ui primitives co-locate their `cva` variant helpers (buttonVariants,
+    // badgeVariants) with the component by design; the variants are imported by
+    // app components. This is an established convention, not a Fast Refresh hazard.
+    files: ['src/components/ui/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
+  {
+    // Build tooling runs under Node (via tsx), not the browser/Fast Refresh model.
+    files: ['scripts/**/*.{ts,mts}'],
+    languageOptions: {
+      globals: globals.node,
+    },
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

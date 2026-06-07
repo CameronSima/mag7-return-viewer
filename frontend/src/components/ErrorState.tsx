@@ -1,4 +1,6 @@
-import { Alert, AlertTitle, Button, Stack } from "@mui/material";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 interface ErrorStateProps {
   error: Error;
@@ -13,19 +15,17 @@ interface ErrorStateProps {
  */
 export function ErrorState({ error, onRetry }: ErrorStateProps) {
   return (
-    <Stack spacing={2}>
-      <Alert severity="error" variant="outlined">
-        <AlertTitle>Unable to load returns</AlertTitle>
-        {error.message}
+    <div className="flex flex-col items-start gap-3">
+      <Alert variant="destructive">
+        <AlertCircle />
+        <AlertTitle>Unable to load data</AlertTitle>
+        <AlertDescription>{error.message}</AlertDescription>
       </Alert>
       {onRetry && (
-        <Button
-          variant="outlined"
-          onClick={onRetry}
-          sx={{ alignSelf: "flex-start" }}>
+        <Button variant="outline" onClick={onRetry}>
           Try again
         </Button>
       )}
-    </Stack>
+    </div>
   );
 }
