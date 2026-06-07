@@ -199,6 +199,15 @@ class Holding(BaseModel):
     total_return: float
 
 
+class AnnualReturn(BaseModel):
+    """Calendar-year return for each series (keyed by "Portfolio"/benchmark).
+    ``partial`` flags a first/last year the window doesn't fully span."""
+
+    year: int
+    partial: bool
+    returns: dict[str, float]
+
+
 class PortfolioResponse(BaseModel):
     """Full response for GET /portfolio.
 
@@ -212,6 +221,7 @@ class PortfolioResponse(BaseModel):
     correlation: CorrelationMatrix
     window: CompareWindow
     holdings: list[Holding]
+    annual: list[AnnualReturn]
     benchmark: str | None
     missing: list[str]
 

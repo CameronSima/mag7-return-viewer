@@ -16,6 +16,7 @@ from app.config import MAX_CHART_POINTS, TRADING_DAYS_PER_YEAR
 from app.dependencies import get_portfolio_cache, get_price_fetcher
 from app.models import PortfolioQuery, PortfolioResponse, RebalanceFreq
 from app.services.analytics import (
+    compute_annual_returns,
     compute_comparison_stats,
     compute_correlation,
     compute_growth,
@@ -150,6 +151,7 @@ def get_portfolio(
         "correlation": compute_correlation(combined),
         "window": describe_window(combined),
         "holdings": holdings,
+        "annual": compute_annual_returns(combined),
         "benchmark": active_benchmark,
         "missing": missing,
     }

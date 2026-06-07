@@ -88,9 +88,10 @@ typo'd symbol has no data, and the shareable URL.
 - The blended **portfolio's value is backtested** day by day — holdings drift
   between rebalances and snap back to target weights on each rebalance boundary
   — then plotted as growth of $1 against the benchmark.
-- The same **risk/return table** compares the portfolio to the benchmark, and a
-  **holdings breakdown** shows each name's weight, total return, and weighted
-  contribution.
+- The same **risk/return table** compares the portfolio to the benchmark, a
+  **calendar-year returns** chart + table shows year-by-year performance vs. the
+  benchmark (partial first/last years flagged), and a **holdings breakdown**
+  shows each name's weight, total return, and weighted contribution.
 
 Weights are entered raw and shown normalized to 100%; an "Equal weight" button
 balances them. A dropped (no-data) holding renormalizes the rest.
@@ -263,14 +264,17 @@ optional → equal-weight), `rebalance` (`none`|`monthly`|`quarterly`|`annually`
   "correlation": { "tickers": ["Portfolio", "SPY"], "matrix": [[1.0, 0.93], [0.93, 1.0]] },
   "window": { "start": "2020-06-08", "end": "2025-06-06", "trading_days": 1258 },
   "holdings": [{ "ticker": "AAPL", "weight": 0.4, "total_return": 2.41 }],
+  "annual": [{ "year": 2020, "partial": true, "returns": { "Portfolio": 0.21, "SPY": 0.12 } }],
   "benchmark": "SPY",
   "missing": []
 }
 ```
 
-`growth`/`stats`/`correlation` are keyed by `"Portfolio"` and the benchmark, so
-the same chart/table components render them. Weights are merged across duplicate
-tickers and normalized to sum to 1.
+`growth`/`stats`/`correlation`/`annual` are keyed by `"Portfolio"` and the
+benchmark, so the same chart/table components render them. Each `annual` entry
+chains from the prior year-end (so the yearly returns compound to the total) and
+flags a `partial` first/last year. Weights are merged across duplicate tickers
+and normalized to sum to 1.
 
 ### `GET /returns`
 
@@ -320,26 +324,27 @@ Degenerate inputs (a single common day, a zero-variance series) yield zeros, not
 ```bash
 # Backend
 cd backend
-uv run pytest -v          # 54 tests
+uv run pytest -v          # 58 tests
 uv run ruff check . && uv run mypy app
 
 # Frontend
 cd frontend
-npm test                  # 27 tests
+npm test                  # 30 tests
 npx tsc -b && npx eslint .
 ```
 
 **Backend** covers the analytics math (common-window alignment, growth rebasing,
 CAGR/vol/Sharpe, max drawdown, correlation, degenerate inputs, downsampling, and
-the portfolio simulation incl. rebalancing vs. buy-and-hold), the cache, and all
-endpoints end-to-end (happy path, ticker/weight normalization & validation,
-missing-holding renormalization, no-overlap → 422, no-data → 422, upstream → 502,
-cache hits) against a fake price fetcher.
+the portfolio simulation incl. rebalancing vs. buy-and-hold), calendar-year chaining + partial-year flagging, the cache, and all endpoints
+end-to-end (happy path, ticker/weight normalization & validation, missing-holding
+renormalization, no-overlap → 422, no-data → 422, upstream → 502, cache hits)
+against a fake price fetcher.
 
 **Frontend** covers the formatters, the comparison table, the ticker input and
 portfolio builder (normalization, validation, cap, weights, equalize, remove),
 the URL-state hook (hydrate + mirror for both modes), and the app end-to-end via
-MSW (compare default load, portfolio-mode backtest, missing-ticker warning, 422
+MSW (compare default load, portfolio-mode backtest, calendar-year returns table,
+missing-ticker warning, 422
 shown verbatim with no retry, 502 with retry-and-recover). The Plotly charts are
 mocked because jsdom has no canvas; every other path runs for real. External
 dependencies (yfinance, the network) are never hit in tests.
@@ -353,9 +358,9 @@ In roughly the order I'd tackle them:
 1. **Trim the bundle.** Plotly is ~80% of it. Most of the app needs only
    `plotly.js-basic-dist`; the heatmap is the lone holdout, so lazy-load the
    correlation view (or its Plotly bundle) behind a dynamic import.
-2. **Richer portfolio analytics** — contribution-to-risk, a benchmark-relative
-   tracking error / information ratio, and a periodic-return (calendar-year)
-   table alongside the growth curve.
+2. **Richer portfolio analytics** — building on the calendar-year returns
+   already shipped: benchmark-relative beta/alpha, tracking error and information
+   ratio, and per-holding contribution to portfolio *risk* (not just return).
 3. **Rolling views** — rolling correlation and rolling volatility, for when a
    single window-wide number hides a regime change.
 4. **Redis cache** behind the existing `Cache` protocol (no call-site changes).
@@ -412,12 +417,13 @@ In roughly the order I'd tackle them:
     │       ├── TickerInput.tsx        PortfolioBuilder.tsx
     │       ├── DateRangePicker.tsx    GrowthChart.tsx
     │       ├── ComparisonTable.tsx    HoldingsTable.tsx
-    │       ├── CorrelationHeatmap.tsx WindowCaption.tsx
+    │       ├── CorrelationHeatmap.tsx AnnualReturns.tsx
     │       ├── CompareResults.tsx     PortfolioResults.tsx
+    │       ├── WindowCaption.tsx
     │       └── LoadingState.tsx       ErrorState.tsx
     └── tests/
         ├── setup.ts  test-utils.tsx  mocks/{server,handlers}.ts
-        ├── components/{App,ComparisonTable,TickerInput,PortfolioBuilder}.test.tsx
+        ├── components/{App,ComparisonTable,TickerInput,PortfolioBuilder,AnnualReturns}.test.tsx
         ├── hooks/useUrlState.test.ts
         └── utils/stats.test.ts
 ```

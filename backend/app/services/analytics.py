@@ -70,6 +70,16 @@ class WindowDict(TypedDict):
     trading_days: int
 
 
+class AnnualReturnDict(TypedDict):
+    """Calendar-year return for each series. ``returns`` is keyed by series name
+    (e.g. "Portfolio", "SPY"); ``partial`` flags the first/last year when the
+    window doesn't span the whole calendar year."""
+
+    year: int
+    partial: bool
+    returns: dict[str, float]
+
+
 def restrict_to_common_window(prices: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     """Align a price frame to the window every present ticker shares.
 
@@ -188,6 +198,52 @@ def _rebalance_mask(index: pd.Index, rebalance: str) -> np.ndarray:
     mask = np.zeros(n, dtype=bool)
     mask[1:] = periods[1:] != periods[:-1]
     return mask
+
+
+def compute_annual_returns(aligned_prices: pd.DataFrame) -> list[AnnualReturnDict]:
+    """Calendar-year returns for each (price-like) series in the frame.
+
+    Each year's return chains from the prior year-end — the year's last value
+    over the previous year's last value, minus 1 — so the figures compound back
+    to the total return. The first year's base is the window's first observation
+    (it spans window-start → that year-end) and the last year runs to the
+    window-end; both are flagged ``partial`` when the window doesn't cover the
+    whole calendar year, so a stub first/last year isn't mistaken for a full one.
+    """
+    if aligned_prices.empty:
+        return []
+
+    dti = pd.DatetimeIndex(aligned_prices.index)
+    years = dti.year.to_numpy()
+    unique_years = sorted({int(y) for y in years})
+
+    # The last row of each calendar year is the year-end mark we chain from.
+    last_of_year = {y: aligned_prices[years == y].iloc[-1] for y in unique_years}
+
+    # A year is "partial" when the window starts/ends well inside it (>1 week of
+    # the calendar year is missing). Only the first and last year can be partial.
+    first_partial = int(dti[0].dayofyear) > 7
+    last_ts = dti[-1]
+    last_partial = (pd.Timestamp(int(last_ts.year), 12, 31) - last_ts).days > 7
+
+    rows: list[AnnualReturnDict] = []
+    for i, year in enumerate(unique_years):
+        base = aligned_prices.iloc[0] if i == 0 else last_of_year[unique_years[i - 1]]
+        ratio = last_of_year[year] / base - 1.0
+        partial = (i == 0 and first_partial) or (
+            i == len(unique_years) - 1 and last_partial
+        )
+        rows.append(
+            {
+                "year": year,
+                "partial": partial,
+                "returns": {
+                    str(col): _finite(float(ratio[col]))
+                    for col in aligned_prices.columns
+                },
+            }
+        )
+    return rows
 
 
 def compute_correlation(aligned_prices: pd.DataFrame) -> CorrelationDict:

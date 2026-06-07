@@ -117,6 +117,14 @@ export interface Holding {
   total_return: number;
 }
 
+/** One calendar year's return for each series, keyed by series name. `partial`
+ *  flags a first/last year the window doesn't fully span. */
+export interface AnnualReturn {
+  year: number;
+  partial: boolean;
+  returns: Record<string, number>;
+}
+
 /** Complete response from GET /portfolio. `growth`/`stats` are keyed by
  *  "Portfolio" and (if given) the benchmark symbol, so the same chart/table
  *  components render them. */
@@ -126,6 +134,7 @@ export interface PortfolioResponse {
   correlation: CorrelationMatrix;
   window: CompareWindow;
   holdings: Holding[];
+  annual: AnnualReturn[];
   benchmark: string | null;
   missing: string[];
 }

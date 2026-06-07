@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from app.services.analytics import (
+    compute_annual_returns,
     compute_comparison_stats,
     compute_correlation,
     compute_growth,
@@ -234,3 +235,49 @@ def test_portfolio_rebalances_on_period_boundary() -> None:
 
 def test_portfolio_empty_frame() -> None:
     assert simulate_portfolio_value(pd.DataFrame(), {}, "none").empty
+
+
+def test_annual_returns_chains_across_years() -> None:
+    """Each year chains from the prior year-end, so the yearly returns compound
+    back to the total return; full years aren't flagged partial."""
+    prices = _frame(
+        {"AAA": [100.0, 110.0, 130.0, 132.0]},
+        ["2021-01-04", "2021-12-31", "2022-06-01", "2022-12-31"],
+    )
+    rows = compute_annual_returns(prices)
+
+    assert [r["year"] for r in rows] == [2021, 2022]
+    assert rows[0]["returns"]["AAA"] == pytest.approx(0.10)  # 110/100
+    assert rows[1]["returns"]["AAA"] == pytest.approx(0.20)  # 132/110
+    assert [r["partial"] for r in rows] == [False, False]
+    # Compounds to the total return: 1.10 * 1.20 == 132/100.
+    assert (1 + rows[0]["returns"]["AAA"]) * (
+        1 + rows[1]["returns"]["AAA"]
+    ) == pytest.approx(1.32)
+
+
+def test_annual_returns_flags_partial_first_and_last_years() -> None:
+    """A window that starts/ends deep inside a calendar year marks those years
+    partial; fully-covered middle years do not."""
+    prices = _frame(
+        {"AAA": [100.0, 105.0, 120.0, 126.0]},
+        ["2020-09-01", "2020-12-31", "2021-12-31", "2022-03-15"],
+    )
+    rows = compute_annual_returns(prices)
+
+    assert [r["year"] for r in rows] == [2020, 2021, 2022]
+    assert [r["partial"] for r in rows] == [True, False, True]
+
+
+def test_annual_returns_multiple_series() -> None:
+    prices = _frame(
+        {"AAA": [100.0, 110.0], "BBB": [100.0, 90.0]},
+        ["2021-01-04", "2021-12-31"],
+    )
+    rows = compute_annual_returns(prices)
+
+    assert rows[0]["returns"] == pytest.approx({"AAA": 0.10, "BBB": -0.10})
+
+
+def test_annual_returns_empty_frame() -> None:
+    assert compute_annual_returns(pd.DataFrame()) == []

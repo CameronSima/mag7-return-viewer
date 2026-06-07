@@ -99,6 +99,10 @@ export const samplePortfolioResponse: PortfolioResponse = {
     { ticker: "MSFT", weight: 0.3, total_return: 0.05 },
     { ticker: "NVDA", weight: 0.3, total_return: 0.2 },
   ],
+  annual: [
+    { year: 2023, partial: true, returns: { Portfolio: 0.05, SPY: 0.04 } },
+    { year: 2024, partial: false, returns: { Portfolio: 0.18, SPY: 0.12 } },
+  ],
   benchmark: "SPY",
   missing: [],
 };

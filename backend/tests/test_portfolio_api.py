@@ -18,8 +18,12 @@ def test_portfolio_happy_path(client: TestClient) -> None:
     body = response.json()
 
     assert set(body.keys()) == {
-        "growth", "stats", "correlation", "window", "holdings", "benchmark", "missing",
+        "growth", "stats", "correlation", "window", "holdings", "annual",
+        "benchmark", "missing",
     }
+    # Calendar-year returns are present and keyed by the series names.
+    assert body["annual"]
+    assert "Portfolio" in body["annual"][0]["returns"]
     # The simulated portfolio is keyed as "Portfolio" and starts at 1.0.
     assert "Portfolio" in body["growth"]
     assert body["growth"]["Portfolio"][0]["value"] == 1.0
